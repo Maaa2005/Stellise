@@ -1,0 +1,6 @@
+module Pods_Stellise {
+  umbrella header "Pods-Stellise-umbrella.h"
+
+  export *
+  module * { export * }
+}

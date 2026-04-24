@@ -1,0 +1,507 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A60C19923931C39C3D4BCEA3 /* libPods-Stellise.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8CF17F371980FF25AC9306 /* libPods-Stellise.a */; };
+		CAB911B12F2B864700F81533 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B02F2B864700F81533 /* FirebaseAnalytics */; };
+		CAB911B32F2B864700F81533 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B22F2B864700F81533 /* FirebaseAnalyticsCore */; };
+		CAB911B52F2B864700F81533 /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B42F2B864700F81533 /* FirebaseAnalyticsIdentitySupport */; };
+		CAB911BF2F2B931E00F81533 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911BE2F2B931E00F81533 /* FirebaseAuth */; };
+		CAB911C12F2B932700F81533 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911C02F2B932600F81533 /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AB8CF17F371980FF25AC9306 /* libPods-Stellise.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Stellise.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AFC6140B8C006A07906361B6 /* Pods-Stellise.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Stellise.release.xcconfig"; path = "Target Support Files/Pods-Stellise/Pods-Stellise.release.xcconfig"; sourceTree = "<group>"; };
+		CAF611332EB9BADE0039A58D /* Stellise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Stellise.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D53387D92E80DE9B2E72E70F /* Pods-Stellise.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Stellise.debug.xcconfig"; path = "Target Support Files/Pods-Stellise/Pods-Stellise.debug.xcconfig"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CAF42D2A2EBB048500E557E8 /* Exceptions for "Stellise" folder in "Stellise" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CAF611322EB9BADE0039A58D /* Stellise */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CAF611352EB9BADE0039A58D /* Stellise */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CAF42D2A2EBB048500E557E8 /* Exceptions for "Stellise" folder in "Stellise" target */,
+			);
+			path = Stellise;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CAF611302EB9BADE0039A58D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CAB911B52F2B864700F81533 /* FirebaseAnalyticsIdentitySupport in Frameworks */,
+				CAB911BF2F2B931E00F81533 /* FirebaseAuth in Frameworks */,
+				CAB911B12F2B864700F81533 /* FirebaseAnalytics in Frameworks */,
+				CAB911B32F2B864700F81533 /* FirebaseAnalyticsCore in Frameworks */,
+				A60C19923931C39C3D4BCEA3 /* libPods-Stellise.a in Frameworks */,
+				CAB911C12F2B932700F81533 /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		106B6EFCE83D80EB2F1156B0 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AB8CF17F371980FF25AC9306 /* libPods-Stellise.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		111CCBF2E127C518D942134A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				D53387D92E80DE9B2E72E70F /* Pods-Stellise.debug.xcconfig */,
+				AFC6140B8C006A07906361B6 /* Pods-Stellise.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		CAF6112A2EB9BADE0039A58D = {
+			isa = PBXGroup;
+			children = (
+				CAF611352EB9BADE0039A58D /* Stellise */,
+				CAF611342EB9BADE0039A58D /* Products */,
+				111CCBF2E127C518D942134A /* Pods */,
+				106B6EFCE83D80EB2F1156B0 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		CAF611342EB9BADE0039A58D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CAF611332EB9BADE0039A58D /* Stellise.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CAF611322EB9BADE0039A58D /* Stellise */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CAF6113E2EB9BAE10039A58D /* Build configuration list for PBXNativeTarget "Stellise" */;
+			buildPhases = (
+				35A26A602E76AA6849F6421F /* [CP] Check Pods Manifest.lock */,
+				CAF6112F2EB9BADE0039A58D /* Sources */,
+				CAF611302EB9BADE0039A58D /* Frameworks */,
+				CAF611312EB9BADE0039A58D /* Resources */,
+				1491F4B2465A19B8EC6659BE /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CAF611352EB9BADE0039A58D /* Stellise */,
+			);
+			name = Stellise;
+			productName = Stellise;
+			productReference = CAF611332EB9BADE0039A58D /* Stellise.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CAF6112B2EB9BADE0039A58D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					CAF611322EB9BADE0039A58D = {
+						CreatedOnToolsVersion = 26.1;
+					};
+				};
+			};
+			buildConfigurationList = CAF6112E2EB9BADE0039A58D /* Build configuration list for PBXProject "Stellise" */;
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				ja,
+			);
+			mainGroup = CAF6112A2EB9BADE0039A58D;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CAF611342EB9BADE0039A58D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CAF611322EB9BADE0039A58D /* Stellise */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CAF611312EB9BADE0039A58D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1491F4B2465A19B8EC6659BE /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Stellise/Pods-Stellise-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Stellise/Pods-Stellise-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Stellise/Pods-Stellise-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		35A26A602E76AA6849F6421F /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Stellise-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CAF6112F2EB9BADE0039A58D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CAF6113C2EB9BAE10039A58D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 6WHBM8YCSA;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CAF6113D2EB9BAE10039A58D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 6WHBM8YCSA;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		CAF6113F2EB9BAE10039A58D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D53387D92E80DE9B2E72E70F /* Pods-Stellise.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Stellise/StelliseDebug.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = MA8N4K6DY9;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Stellise/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "あなたのカレンダーの予定から、交通時間を考慮した最適な出発時間とスケジュールを自動生成するためにアクセスします。";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "カレンダーの予定をもとに、移動時間や準備時間を計算し、最適な起床時刻を自動設定するために使用します。";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "出発地点の天気情報や、目的地までのリアルタイムの交通状況を監視し、最適なアラーム時間を計算するために位置情報を使用します。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "出発地点の天気情報や、目的地までのリアルタイムの交通状況を監視し、最適なアラーム時間を計算するために位置情報を使用します。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "睡眠中のいびきや環境音をAIで解析し、睡眠品質を測定するためにマイクを使用します。音声データはデバイス内で処理されます。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "寝返りなどの体動を検知して睡眠サイクルを分析したり、スマホを伏せた際の「省電力モード」を有効にするために使用します。";
+				INFOPLIST_KEY_NSSiriUsageDescription = "Siriを使って、次のタスクの読み上げや、タスクの完了操作を行うために使用します。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CAF611402EB9BAE10039A58D /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AFC6140B8C006A07906361B6 /* Pods-Stellise.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Stellise/Stellise.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = MA8N4K6DY9;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Stellise/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "あなたのカレンダーの予定から、交通時間を考慮した最適な出発時間とスケジュールを自動生成するためにアクセスします。";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "カレンダーの予定をもとに、移動時間や準備時間を計算し、最適な起床時刻を自動設定するために使用します。";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "出発地点の天気情報や、目的地までのリアルタイムの交通状況を監視し、最適なアラーム時間を計算するために位置情報を使用します。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "出発地点の天気情報や、目的地までのリアルタイムの交通状況を監視し、最適なアラーム時間を計算するために位置情報を使用します。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "睡眠中のいびきや環境音をAIで解析し、睡眠品質を測定するためにマイクを使用します。音声データはデバイス内で処理されます。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "寝返りなどの体動を検知して睡眠サイクルを分析したり、スマホを伏せた際の「省電力モード」を有効にするために使用します。";
+				INFOPLIST_KEY_NSSiriUsageDescription = "Siriを使って、次のタスクの読み上げや、タスクの完了操作を行うために使用します。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CAF6112E2EB9BADE0039A58D /* Build configuration list for PBXProject "Stellise" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CAF6113C2EB9BAE10039A58D /* Debug */,
+				CAF6113D2EB9BAE10039A58D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CAF6113E2EB9BAE10039A58D /* Build configuration list for PBXNativeTarget "Stellise" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CAF6113F2EB9BAE10039A58D /* Debug */,
+				CAF611402EB9BAE10039A58D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CAB911B02F2B864700F81533 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		CAB911B22F2B864700F81533 /* FirebaseAnalyticsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsCore;
+		};
+		CAB911B42F2B864700F81533 /* FirebaseAnalyticsIdentitySupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsIdentitySupport;
+		};
+		CAB911BE2F2B931E00F81533 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		CAB911C02F2B932600F81533 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = CAF6112B2EB9BADE0039A58D /* Project object */;
+}
