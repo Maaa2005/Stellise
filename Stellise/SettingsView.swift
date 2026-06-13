@@ -28,7 +28,7 @@ struct SettingsView: View {
                 // --- 2. アラーム設定 ---
                 Section(header: Text("アラーム設定")) {
                     Toggle("スマートアラーム", isOn: $appState.userData.isSmartAlarmEnabled)
-                        .tint(.blue)
+                        .tint(.appAccent)
                     
                     HStack {
                         Text("センサー感度")
@@ -142,14 +142,14 @@ struct SettingsView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Link("利用規約(EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.appAccent)
                     
                     // ★追加: プライバシーポリシーのリンク（※URLを書き換えてください）
                     Link("プライバシーポリシー", destination: URL(string: "https://dusty-jobaria-c70.notion.site/Stellise-3297d70e2c8c80e59cb0c9bd2fb0c008")!)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.appAccent)
                     
                     Link("サブスクリプションの管理・解約", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.appAccent)
                 }
                 .font(.footnote)
                 
@@ -198,12 +198,12 @@ struct TravelModeChip: View {
                     .fontWeight(isSelected ? .bold : .regular)
             }
             .frame(width: 80, height: 60)
-            .background(isSelected ? Color.blue.opacity(0.2) : Color(.systemGray6))
-            .foregroundStyle(isSelected ? .blue : .primary)
+            .background(isSelected ? Color.appAccent.opacity(0.2) : Color(.systemGray6))
+            .foregroundStyle(isSelected ? .appAccent : .primary)
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? Color.appAccent : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)

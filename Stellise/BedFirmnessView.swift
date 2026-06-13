@@ -62,7 +62,7 @@ struct BedFirmnessView: View {
                                 // 選択中の項目にチェックマークを付ける
                                 if appState.userData.bedFirmness == option.value {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(.appAccent)
                                 }
                             }
                         }
@@ -91,7 +91,7 @@ struct BedFirmnessView: View {
                                     Text("次へ")
                                         .fontWeight(.semibold)
                                         .frame(width: 300, height: 50)
-                                        .background(Color.blue)
+                                        .background(Color.appAccent)
                                         .foregroundStyle(Color.white)
                                         .cornerRadius(10)
                                 }

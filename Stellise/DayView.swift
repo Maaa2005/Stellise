@@ -5,6 +5,7 @@ struct DayView: View {
 
     @EnvironmentObject var appState: AppState
     @State private var isShowingReportModal: Bool = false
+    @State private var isShowingAlarmPicker: Bool = false
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     private var allTasksCompleted: Bool {
@@ -19,11 +20,8 @@ struct DayView: View {
     
     var body: some View {
             ZStack {
-                // 背景画像
-                Image(appState.backgroundImageName)
-                    .resizable()
-                    .scaledToFill()
-                    .edgesIgnoringSafeArea(.all)
+                // 背景: SceneKitの3D天体（天気連動）。画像から差し替え。
+                Background3DView(condition: WeatherCondition.from(backgroundImageName: appState.backgroundImageName))
                     .transition(.opacity.animation(.easeOut(duration: 1.0)))
                 
                 // --- コンテンツ ---
@@ -110,24 +108,75 @@ struct DayView: View {
                             // 時間
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                                 Text(context.date, style: .time)
-                                    .font(.system(size: 96, weight: .thin, design: .default))
-                                    .monospacedDigit()
-                                    // ★★★ 修正: 背景が明るい時は黒、暗い時は白 ★★★
-                                    .foregroundStyle(appState.isBrightBackground ? .black : .white)
-                                    // 見やすさを考慮し、以前の派手なシャドウは削除しました
+                                    // P0: デザイントークンの大時計フォント（rounded + monospacedDigit）
+                                    .font(Theme.Typography.clock(96))
+                                    // 背景が明るい時は濃紺、暗い時は白
+                                    .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
                             }
-                            
+
                             // 日付
                             Text(dateString)
-                                .font(.system(.title3, design: .default, weight: .regular))
+                                .font(.system(.title3, design: .rounded, weight: .regular))
                                 .tracking(3)
-                                // ★★★ 修正: 背景が明るい時は黒、暗い時は白 ★★★
-                                .foregroundStyle(appState.isBrightBackground ? .black.opacity(0.8) : Color.white.opacity(0.8))
+                                // 背景が明るい時は濃紺、暗い時は白
+                                .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.8) : Theme.Palette.textOnDarkMuted)
+
+                            // アラームチップ（朝でも明日のアラームを変更できる導線）
+                            Button {
+                                let g = UIImpactFeedbackGenerator(style: .light); g.impactOccurred()
+                                isShowingAlarmPicker = true
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "bell.fill").font(.subheadline)
+                                    Text(String(format: "%02d:%02d", appState.userData.alarmHour, appState.userData.alarmMinute))
+                                        .font(.system(.title3, design: .rounded, weight: .regular))
+                                        .monospacedDigit()
+                                }
+                                .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 9)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                            }
+                            .padding(.top, 16)
                         }
-                        .padding(.vertical, 36)
+                        .padding(.vertical, 32)
                         
                         // タスクリスト
-                        if allTasksCompleted {
+                        if appState.dailyTasks.isEmpty {
+                            Spacer()
+                            // タスク未生成: 自動生成せず、手動で生成させる
+                            VStack(spacing: 18) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 44, weight: .ultraLight))
+                                    .foregroundStyle(.white)
+                                Text("今日のタスクはまだありません")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                Text("天気と予定から、出発に間に合う\n朝のルーティンを組み立てます。")
+                                    .font(.subheadline)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                    .lineSpacing(4)
+                                Button {
+                                    let g = UIImpactFeedbackGenerator(style: .medium); g.impactOccurred()
+                                    Task { await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium) }
+                                } label: {
+                                    Text("タスクを生成")
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 32)
+                                        .padding(.vertical, 14)
+                                        .background(Color.appAccent, in: Capsule())
+                                }
+                                .padding(.top, 4)
+                            }
+                            .padding(40)
+                            .glassCard()
+                            .padding(.horizontal, 32)
+                            Spacer()
+
+                        } else if allTasksCompleted {
                             Spacer()
                             // 完了画面
                             VStack(spacing: 16) {
@@ -178,7 +227,7 @@ struct DayView: View {
                                                 } label: {
                                                     Label("完了", systemImage: "checkmark")
                                                 }
-                                                .tint(Color.blue.opacity(0.7)) // 蛍光グリーンから落ち着いたブルーへ
+                                                .tint(Color.appAccent.opacity(0.7)) // 完了スワイプはアクセントのパープルで統一
                                             }
                                     }
                                 }
@@ -204,11 +253,7 @@ struct DayView: View {
             }
             
             .onAppear {
-            if appState.dailyTasks.isEmpty || appState.connectionError {
-                Task {
-                    await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium)
-                }
-            }
+            // タスクは自動生成しない（アラーム発火 or 手動「生成」ボタンで作る）
             if appState.lastSleepScore > 0 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { isShowingReportModal = true }
                 appState.startMorningTrafficMonitoring(isPremium: subscriptionManager.isPremium)
@@ -222,6 +267,30 @@ struct DayView: View {
         }
         .sheet(isPresented: $isShowingReportModal) {
             SleepReportModalView().presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $isShowingAlarmPicker) {
+            VStack(spacing: 20) {
+                Text("アラーム設定").font(.headline).padding(.top)
+                DatePicker("", selection: Binding(
+                    get: {
+                        let comp = DateComponents(hour: appState.userData.alarmHour, minute: appState.userData.alarmMinute)
+                        return Calendar.current.date(from: comp) ?? Date()
+                    },
+                    set: { newDate in
+                        let comp = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                        appState.userData.alarmHour = comp.hour ?? appState.userData.alarmHour
+                        appState.userData.alarmMinute = comp.minute ?? appState.userData.alarmMinute
+                    }
+                ), displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel).labelsHidden()
+                Button("完了") {
+                    isShowingAlarmPicker = false
+                    appState.save()
+                    appState.requestNotificationPermission()
+                    appState.scheduleMorningAlarm()
+                }.padding()
+            }
+            .presentationDetents([.medium])
         }
     }
 }

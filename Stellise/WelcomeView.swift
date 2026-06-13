@@ -33,7 +33,7 @@ struct WelcomeView: View {
                     Text("次へ")
                         .fontWeight(.semibold)
                         .frame(width: 200, height: 50)
-                        .background(Color.blue)
+                        .background(Color.appAccent)
                         .foregroundStyle(Color.white)
                         .cornerRadius(10)
                 }

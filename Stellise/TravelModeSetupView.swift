@@ -50,7 +50,7 @@ struct TravelModeSetupView: View {
                     Text("次へ")
                         .fontWeight(.semibold)
                         .frame(width: 300, height: 50)
-                        .background(Color.blue)
+                        .background(Color.appAccent)
                         .foregroundStyle(Color.white)
                         .cornerRadius(10)
                 }
@@ -95,7 +95,7 @@ private struct OnboardingTravelModeChip: View {
             .frame(maxWidth: 250, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 15)
-            .background(isSelected ? .blue : Color(.systemGray5))
+            .background(isSelected ? .appAccent : Color(.systemGray5))
             .foregroundStyle(isSelected ? .white : .primary)
             .cornerRadius(15)
         }

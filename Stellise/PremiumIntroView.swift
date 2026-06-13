@@ -53,7 +53,7 @@ struct PremiumIntroView: View {
                     Text("\(product.displayPrice) / 月で試す")
                         .fontWeight(.bold)
                         .frame(width: 300, height: 50)
-                        .background(Color.blue)
+                        .background(Color.appAccent)
                         .foregroundStyle(.white)
                         .cornerRadius(12)
                 }
@@ -79,13 +79,13 @@ struct PremiumIntroView: View {
             HStack(spacing: 15) {
                 Link("利用規約(EULA)", destination: eulaURL)
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.appAccent)
                 
                 Text("|").font(.caption).foregroundColor(.secondary)
                 
                 Link("プライバシーポリシー", destination: privacyURL)
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.appAccent)
             }
             .padding(.bottom, 10)
         }
@@ -111,7 +111,7 @@ struct FeatureRow: View {
     let text: String
     var body: some View {
         HStack {
-            Image(systemName: icon).foregroundStyle(.blue).frame(width: 30)
+            Image(systemName: icon).foregroundStyle(.appAccent).frame(width: 30)
             Text(text).font(.subheadline)
         }
     }

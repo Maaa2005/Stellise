@@ -21,7 +21,7 @@ struct CalendarLinkView: View {
                 // アイコン部分
                 Image(systemName: "calendar.badge.plus")
                     .font(.system(size: 80))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.appAccent)
                     .padding(.bottom, 10)
                 
                 Text("カレンダーを連携しますか？")
@@ -39,7 +39,7 @@ struct CalendarLinkView: View {
                     HStack(alignment: .top, spacing: 10) {
                         Button(action: { isAgreed.toggle() }) {
                             Image(systemName: isAgreed ? "checkmark.square.fill" : "square")
-                                .foregroundStyle(isAgreed ? .blue : .gray)
+                                .foregroundStyle(isAgreed ? .appAccent : .gray)
                                 .font(.title2)
                         }
                         .buttonStyle(.plain)
@@ -47,10 +47,10 @@ struct CalendarLinkView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 0) {
                                 Button("利用規約") { isShowingTerms = true }
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(.appAccent)
                                 Text(" と ")
                                 Button("プライバシーポリシー") { isShowingPrivacyPolicy = true }
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(.appAccent)
                                 Text(" に")
                             }
                             Text("同意して、Stelliseの利用を開始します。")
@@ -70,7 +70,7 @@ struct CalendarLinkView: View {
                                     }
                                     .fontWeight(.semibold)
                                     .frame(width: 300, height: 50)
-                                    .background(isAgreed ? Color.blue : Color(.systemGray4))
+                                    .background(isAgreed ? Color.appAccent : Color(.systemGray4))
                                     .foregroundStyle(isAgreed ? .white : .white.opacity(0.6))
                                     .cornerRadius(10)
                                 }

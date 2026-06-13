@@ -11,11 +11,8 @@ struct NightView: View {
     
     var body: some View {
         ZStack {
-            // 背景画像 (夜)
-            Image("image-space-background") // 既存のアセット画像名
-                .resizable()
-                .scaledToFill()
-                .edgesIgnoringSafeArea(.all)
+            // 背景: SceneKitの3D夜空（月＋星）。画像から差し替え。
+            Background3DView(condition: .night)
                 .transition(.opacity.animation(.easeOut(duration: 1.0)))
             
             // --- コンテンツ ---
@@ -37,9 +34,9 @@ struct NightView: View {
                     // 現在時刻
                     TimelineView(.periodic(from: .now, by: 1.0)) { context in
                         Text(context.date, style: .time)
-                            .font(.system(size: 100, weight: .thin, design: .default))
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
+                            // P0: デザイントークンの大時計フォント（rounded + monospacedDigit）
+                            .font(Theme.Typography.clock(100))
+                            .foregroundStyle(Theme.Palette.textOnDark)
                             .shadow(color: Color.white.opacity(0.2), radius: 10, x: 0, y: 0)
                     }
                     
@@ -218,6 +215,8 @@ struct NightView: View {
                 if timeUntilAlarm <= 0 && timeUntilAlarm > -60 {
                     print("⏰ 時間到達: アラーム発動！")
                     appState.generateNewMission()
+                    // アラーム発火を起点に、朝のタスクを生成（朝画面の自動生成は廃止したため）
+                    Task { await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium) }
                     appState.isAlarmRinging = true
                     appState.startAlarmEffects()
                 }

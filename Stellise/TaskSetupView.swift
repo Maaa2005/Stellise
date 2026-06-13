@@ -120,7 +120,7 @@ struct TaskSetupView: View {
                                     Text("次へ")
                                         .fontWeight(.semibold)
                                         .frame(width: 300, height: 50)
-                                        .background(Color.blue)
+                                        .background(Color.appAccent)
                                         .foregroundStyle(Color.white)
                                         .cornerRadius(10)
                                 }

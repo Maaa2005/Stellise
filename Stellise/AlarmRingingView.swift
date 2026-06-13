@@ -91,7 +91,7 @@ struct AlarmRingingView: View {
                                     .fontWeight(.bold)
                                     .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(.blue)
+                                    .background(.appAccent)
                                     .foregroundStyle(.white)
                                     .cornerRadius(20)
                             }

@@ -17,6 +17,7 @@ struct StelliseApp: App {
     @StateObject private var subscriptionManager = SubscriptionManager()
     
     @State private var isLoading: Bool = true
+    @State private var homePage: Int = 1   // 0=睡眠データ（右スワイプで表示）, 1=ホーム
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
@@ -42,32 +43,35 @@ struct StelliseApp: App {
                 // --- 3. メインアプリ ---
                 else {
                     ZStack {
-                        // A. 通常画面 (タブ)
-                        TabView(selection: $appState.selectedTab) {
-                            DayView()
-                                .tabItem { Label("朝", systemImage: "sun.max.fill") }
+                        // A. 横ページング: 睡眠データ(0) ⇄ ホーム(1)。ホームから右スワイプで睡眠データへ。
+                        TabView(selection: $homePage) {
+                            SleepDataView()
                                 .tag(0)
-                            
-                            NightView()
-                                .tabItem { Label("夜", systemImage: "moon.fill") }
-                                .tag(1)
-                            
-                            SettingsView()
-                                .tabItem { Label("設定", systemImage: "gearshape.fill") }
-                                .tag(2)
+
+                            // 時間駆動ホーム（朝⇄夜を薄明でクロスフェード）
+                            Group {
+                                if appState.selectedTab == 1 {
+                                    NightView()
+                                } else {
+                                    DayView()
+                                }
+                            }
+                            .transition(.opacity)
+                            .animation(.easeInOut(duration: 1.2), value: appState.selectedTab)
+                            .tag(1)
                         }
-                        .accentColor(.white)
-                        .preferredColorScheme(.dark)
-                        
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        .ignoresSafeArea()
+
                         // B. アラーム画面 (割り込み表示)
                         if appState.isAlarmRinging {
                             AlarmRingingView()
                                 .environmentObject(appState)
-                                .transition(.opacity.animation(.easeInOut)) // アニメーション付きで出現
-                                .zIndex(999) // 確実に最前面へ
+                                .transition(.opacity.animation(.easeInOut))
+                                .zIndex(999)
                         }
                     }
-                    // ★★★ 重要: アラーム状態の変化に合わせて画面を更新する設定 ★★★
+                    .preferredColorScheme(.dark)
                     .animation(.easeInOut, value: appState.isAlarmRinging)
                 }
                 if appState.selectedTab == 1 && appState.isFaceDown {
@@ -84,28 +88,21 @@ struct StelliseApp: App {
             // --- ライフサイクル管理 ---
             .onChange(of: appState.selectedTab) { oldTab, newTab in
                 if newTab == 1 {
-                    // 夜画面へ: アラーム待機モード
+                    // 夜へ: アラーム待機モード。タスク自動生成はしない（アラーム発火 or 手動生成）。
                     Task {
-                        // ※ ここで resetNightlyState を呼ぶと、アラーム中にタブが変わった場合に止まってしまうリスクがあるため、
-                        // アラームが鳴っていない時だけリセットするようにガードします。
+                        // アラーム中にモードが変わっても止まらないようガード
                         if !appState.isAlarmRinging {
                             await appState.resetNightlyState()
                         }
-                        await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium)
-                        
                         // センサー開始
                         appState.sensorManager.startDetection(threshold: appState.movementThreshold)
                     }
-                } else if newTab == 0 {
-                    // 朝画面へ
+                } else {
+                    // 朝へ: センサー・音声解析を停止（タスクは自動生成しない）
                     Task {
                         appState.sensorManager.stopDetection()
                         await appState.soundAnalyzer.stopAnalyzing()
-                        await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium)
                     }
-                } else {
-                    // 設定画面へ
-                    appState.sensorManager.stopDetection()
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
@@ -126,7 +123,7 @@ struct StelliseApp: App {
         if appState.isAlarmRinging || appState.needsOnboarding { return }
         
         let hour = Calendar.current.component(.hour, from: Date())
-        
+
         // 朝 4:00 〜 夕方 18:00 は「朝画面」
         if hour >= 4 && hour < 18 {
             if appState.selectedTab != 0 {
@@ -139,3 +136,4 @@ struct StelliseApp: App {
         }
     }
 }
+
