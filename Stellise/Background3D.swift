@@ -38,11 +38,17 @@ struct Background3DView: View {
                 .ignoresSafeArea()
 
             // 3Dレイヤー（透過SCNView）。10分ごとに現在時刻を反映し、天体を弧上で動かす。
+            // ※ ignoresSafeArea は TimelineView 自体に付ける（内側だと SCNView が上端で切れる）。
             TimelineView(.periodic(from: .now, by: 600)) { context in
                 CelestialSceneView(condition: condition, hour: Self.hour(from: context.date))
-                    .ignoresSafeArea()
                     .allowsHitTesting(false)
             }
+            .ignoresSafeArea()
+
+            // 天気オーバーレイ（曇り=雲、雨=雲＋雨）
+            WeatherOverlayView(condition: condition)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
     }
 
@@ -524,5 +530,84 @@ private enum SceneBuilder {
             node.runAction(.repeatForever(.sequence([dim, bright])))
         }
         scene.rootNode.addChildNode(container)
+    }
+}
+
+// MARK: - 天気オーバーレイ（曇り・雨）
+
+/// 3D天体レイヤーの上に重ねる天気表現。曇り＝雲、雨＝雲＋降雨。
+private struct WeatherOverlayView: View {
+    let condition: WeatherCondition
+
+    var body: some View {
+        switch condition {
+        case .cloudy:
+            CloudLayer(dark: false)
+        case .rain:
+            ZStack {
+                CloudLayer(dark: true)
+                RainLayer()
+            }
+        default:
+            Color.clear
+        }
+    }
+}
+
+/// 柔らかい雲がゆっくり流れるレイヤー（上空に数枚）。
+private struct CloudLayer: View {
+    let dark: Bool
+    @State private var drift = false
+
+    // (x割合, y割合, 幅割合, 高さ割合)
+    private let clouds: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
+        (0.28, 0.16, 0.75, 0.16), (0.72, 0.10, 0.6, 0.13), (0.5, 0.26, 0.95, 0.18),
+        (0.18, 0.32, 0.55, 0.12), (0.84, 0.30, 0.6, 0.14), (0.6, 0.40, 0.7, 0.14),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(clouds.indices, id: \.self) { i in
+                    let cl = clouds[i]
+                    Ellipse()
+                        .fill(dark ? Color(white: 0.42).opacity(0.55) : Color.white.opacity(0.6))
+                        .frame(width: geo.size.width * cl.2, height: geo.size.height * cl.3)
+                        .blur(radius: 34)
+                        .position(x: geo.size.width * cl.0 + (drift ? 16 : -16),
+                                  y: geo.size.height * cl.1)
+                }
+            }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 11).repeatForever(autoreverses: true)) {
+                    drift = true
+                }
+            }
+        }
+    }
+}
+
+/// 斜めに降る雨。Canvasで毎フレーム描画（列は固定、時間で落下）。
+private struct RainLayer: View {
+    var body: some View {
+        TimelineView(.animation) { tl in
+            Canvas { ctx, size in
+                let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
+                let span = size.height + 60
+                var rng = SeededRandom(seed: 2026)
+                for _ in 0..<80 {
+                    let x = CGFloat(rng.next()) * size.width
+                    let speed = 520 + CGFloat(rng.next()) * 420       // px/s
+                    let len = 12 + CGFloat(rng.next()) * 18
+                    let phase = CGFloat(rng.next()) * span
+                    let alpha = 0.12 + CGFloat(rng.next()) * 0.18
+                    let y = (t * speed + phase).truncatingRemainder(dividingBy: span) - 30
+                    var p = Path()
+                    p.move(to: CGPoint(x: x, y: y))
+                    p.addLine(to: CGPoint(x: x - 5, y: y - len))      // 風で少し斜め
+                    ctx.stroke(p, with: .color(.white.opacity(alpha)), lineWidth: 1.1)
+                }
+            }
+        }
     }
 }
