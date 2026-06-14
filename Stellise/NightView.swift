@@ -11,10 +11,8 @@ struct NightView: View {
     
     var body: some View {
         ZStack {
-            // 背景: SceneKitの3D夜空（月＋星）。画像から差し替え。
-            Background3DView(condition: .night)
-                .transition(.opacity.animation(.easeOut(duration: 1.0)))
-            
+            // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
+
             // --- コンテンツ ---
             VStack(spacing: 0) {
                 

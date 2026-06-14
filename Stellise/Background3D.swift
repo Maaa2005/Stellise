@@ -51,6 +51,12 @@ struct Background3DView: View {
         let c = Calendar.current.dateComponents([.hour, .minute], from: date)
         return Double(c.hour ?? 12) + Double(c.minute ?? 0) / 60.0
     }
+
+    /// 起動時に月テクスチャ/グロウ画像を先に生成しておき、初回表示の一瞬の空白を防ぐ。
+    static func preheat() {
+        _ = SceneBuilder.makeScene(for: .night, hour: 0)
+        _ = SceneBuilder.makeScene(for: .clear, hour: 12)
+    }
 }
 
 // MARK: - SceneKit 透過ビュー
@@ -197,6 +203,16 @@ private enum SceneBuilder {
                 lightColor: UIColor(red: 1.0, green: 0.97, blue: 0.9, alpha: 1),
                 showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
                 radius: 0.34, constantLit: true, isMoon: false,
+                glowPeakAlpha: 0.95, glowScale: 17)
+        case .dusk:
+            // 夕暮れの沈む太陽（暖色の柔らかいフレア）。日中と同じ太陽だが赤橙に。
+            return CelestialStyle(
+                color: UIColor(red: 1.0, green: 0.93, blue: 0.82, alpha: 1),
+                emission: UIColor(red: 1.0, green: 0.74, blue: 0.48, alpha: 1),   // 夕焼けのオレンジ
+                emissionIntensity: 0.0,
+                lightColor: UIColor(red: 1.0, green: 0.85, blue: 0.7, alpha: 1),
+                showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
+                radius: 0.36, constantLit: true, isMoon: false,
                 glowPeakAlpha: 0.95, glowScale: 17)
         case .cloudy:
             return CelestialStyle(

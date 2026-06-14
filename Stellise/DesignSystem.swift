@@ -103,7 +103,7 @@ enum Theme {
 
 /// 設計図 §4-1。AppState の背景状態から導出し、画面背景のグラデを決める。
 enum WeatherCondition {
-    case clear, cloudy, rain, snow, dawn, night
+    case clear, cloudy, rain, snow, dawn, dusk, night
 
     /// 上→下の背景グラデーション（§2 パレット）。「紺を暗くした」上品なトーンを保つ。
     var gradient: LinearGradient {
@@ -121,6 +121,8 @@ enum WeatherCondition {
         case .cloudy: return [Color(hex: "#4C5468"), Color(hex: "#8E99AE")]
         case .rain:   return [Color(hex: "#33405A"), Color(hex: "#5E6B86")]
         case .dawn:   return [Color(hex: "#2A2A4E"), Color(hex: "#5B4B7A")]
+        // 夕暮れ: 上=藍 → 中=マゼンタ → 下=夕焼けのオレンジ
+        case .dusk:   return [Color(hex: "#262049"), Color(hex: "#6E4A78"), Color(hex: "#D08A66")]
         case .snow:   return [Color(hex: "#5A6B86"), Color(hex: "#C2CCE0")]
         case .night:  return [Theme.Palette.nightTop, Theme.Palette.nightBottom]
         }
@@ -130,7 +132,7 @@ enum WeatherCondition {
     var isBright: Bool {
         switch self {
         case .clear, .cloudy, .snow: return true
-        case .rain, .dawn, .night: return false
+        case .rain, .dawn, .dusk, .night: return false
         }
     }
 

@@ -2,8 +2,8 @@
 //  SleepDataView.swift
 //  Stellise
 //
-//  ホームから左スワイプで現れる睡眠データ画面。睡眠スコア/サマリー/アドバイスを表示し、
-//  設定への導線もここに集約する（タブバー廃止に伴い、設定は歯車ではなくこの画面の中へ）。
+//  ホームから右スワイプで現れる睡眠データ画面。睡眠スコア(リングゲージ)・各設定の要約・
+//  AIサマリー/アドバイスを表示し、設定への導線(右上の小さな歯車)もここに集約する。
 //
 
 import SwiftUI
@@ -16,20 +16,31 @@ struct SleepDataView: View {
     @State private var isShowingFullReport = false
 
     private var hasReport: Bool { appState.lastSleepScore > 0 }
+    private var alarmText: String {
+        String(format: "%02d:%02d", appState.userData.alarmHour, appState.userData.alarmMinute)
+    }
 
     var body: some View {
         ZStack {
             LinearGradient.nightImmersive.ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
                     Text("睡眠データ")
                         .font(.system(.largeTitle, design: .rounded, weight: .semibold))
                         .foregroundStyle(Theme.Palette.textOnDark)
                         .padding(.top, 28)
 
                     if hasReport {
-                        scoreCard
+                        scoreRingCard
+                    } else {
+                        emptyCard
+                    }
+
+                    // 今夜の設定サマリー（チップ）
+                    infoChips
+
+                    if hasReport {
                         if let summary = appState.lastSleepSummary, !summary.isEmpty {
                             infoCard(title: "AIサマリー", icon: "sparkles", body: summary)
                         }
@@ -42,8 +53,7 @@ struct SleepDataView: View {
                                 .foregroundStyle(Theme.Palette.accentLight)
                         }
                         .frame(maxWidth: .infinity)
-                    } else {
-                        emptyCard
+                        .padding(.top, 2)
                     }
 
                     Spacer(minLength: 40)
@@ -67,26 +77,95 @@ struct SleepDataView: View {
         }
     }
 
-    // MARK: - 部品
+    // MARK: - スコア（リングゲージ）
 
-    private var scoreCard: some View {
-        VStack(spacing: 6) {
-            Text("昨晩のスコア")
-                .font(.subheadline)
-                .foregroundStyle(Theme.Palette.textOnDarkMuted)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(appState.lastSleepScore)")
-                    .font(.system(size: 76, weight: .thin, design: .rounded))
-                    .foregroundStyle(Theme.Palette.textOnDark)
-                Text("点")
-                    .font(.title3)
-                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
+    private var scoreRingCard: some View {
+        let score = appState.lastSleepScore
+        return HStack(spacing: 22) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 10)
+                Circle()
+                    .trim(from: 0, to: min(CGFloat(score) / 100, 1))
+                    .stroke(
+                        AngularGradient(colors: [scoreColor(score).opacity(0.7), scoreColor(score)],
+                                        center: .center),
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 0) {
+                    Text("\(score)")
+                        .font(.system(size: 40, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.Palette.textOnDark)
+                    Text("点")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                }
             }
+            .frame(width: 104, height: 104)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("昨晩の睡眠")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                Text(scoreLabel(score))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(scoreColor(score))
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
+        .padding(22)
         .glassCard()
     }
+
+    private func scoreColor(_ s: Int) -> Color {
+        switch s {
+        case 85...:   return Theme.Palette.accentLight
+        case 70..<85: return Color(hex: "#5BD6A8")
+        case 50..<70: return Color(hex: "#F0B86A")
+        default:      return Theme.Palette.warning
+        }
+    }
+    private func scoreLabel(_ s: Int) -> String {
+        switch s {
+        case 85...:   return "ぐっすり"
+        case 70..<85: return "良好"
+        case 50..<70: return "ふつう"
+        default:      return "浅め"
+        }
+    }
+
+    // MARK: - 設定サマリーのチップ
+
+    private var infoChips: some View {
+        HStack(spacing: 12) {
+            chip(icon: "bell.fill", label: "アラーム", value: alarmText)
+            chip(icon: "wand.and.stars", label: "スマート",
+                 value: appState.userData.isSmartAlarmEnabled ? "ON" : "OFF")
+            chip(icon: "moon.zzz.fill", label: "環境音",
+                 value: appState.sleepSoundManager.selectedSound.rawValue)
+        }
+    }
+
+    private func chip(icon: String, label: String, value: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(Theme.Palette.accentLight)
+            Text(value)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Theme.Palette.textOnDark)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(Theme.Palette.textOnDarkMuted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .glassCard(cornerRadius: Theme.Radius.small)
+    }
+
+    // MARK: - サマリー/アドバイス・空状態
 
     private func infoCard(title: String, icon: String, body text: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {

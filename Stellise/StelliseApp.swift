@@ -28,6 +28,7 @@ struct StelliseApp: App {
                     LoadingView()
                         .onAppear {
                             checkTimeAndSwitchTab()
+                            Background3DView.preheat()  // 月テクスチャ等を先に生成（初回表示の空白防止）
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                                 withAnimation { isLoading = false }
                             }
@@ -48,16 +49,20 @@ struct StelliseApp: App {
                             SleepDataView()
                                 .tag(0)
 
-                            // 時間駆動ホーム（朝⇄夜を薄明でクロスフェード）
-                            Group {
-                                if appState.selectedTab == 1 {
-                                    NightView()
-                                } else {
-                                    DayView()
+                            // 時間駆動ホーム。背景は1枚を共有（朝⇄夜で再生成されず連続）。
+                            ZStack {
+                                Background3DView(condition: homeCondition)
+                                    .ignoresSafeArea()
+                                Group {
+                                    if appState.selectedTab == 1 {
+                                        NightView()
+                                    } else {
+                                        DayView()
+                                    }
                                 }
+                                .transition(.opacity)
+                                .animation(.easeInOut(duration: 1.2), value: appState.selectedTab)
                             }
-                            .transition(.opacity)
-                            .animation(.easeInOut(duration: 1.2), value: appState.selectedTab)
                             .tag(1)
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -117,6 +122,18 @@ struct StelliseApp: App {
         }
     }
     
+    /// 共有背景のコンディション。時刻＋天気から導出し、朝晩の切替に薄明(dawn/dusk)を挟む。
+    private var homeCondition: WeatherCondition {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let weather = WeatherCondition.from(backgroundImageName: appState.backgroundImageName)
+        switch hour {
+        case 5..<7:   return .dawn                                  // 夜明け前
+        case 7..<17:  return weather == .night ? .clear : weather   // 日中は天気連動
+        case 17..<19: return .dusk                                  // 夕暮れ
+        default:      return .night
+        }
+    }
+
     // 時間帯による自動タブ切り替え
     private func checkTimeAndSwitchTab() {
         // アラーム中やオンボーディング中は勝手に切り替えない

@@ -20,10 +20,8 @@ struct DayView: View {
     
     var body: some View {
             ZStack {
-                // 背景: SceneKitの3D天体（天気連動）。画像から差し替え。
-                Background3DView(condition: WeatherCondition.from(backgroundImageName: appState.backgroundImageName))
-                    .transition(.opacity.animation(.easeOut(duration: 1.0)))
-                
+                // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
+
                 // --- コンテンツ ---
                 if appState.isLoading {
                     // ローディング画面
