@@ -563,16 +563,17 @@ private struct WeatherOverlayView: View {
 private struct CloudLayer: View {
     let dark: Bool
 
-    // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], パフseed)
-    private struct Cloud { let x, y, scale, speed: CGFloat; let seed: UInt64 }
+    // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], 横長度, パフseed)
+    // aspect>1=横に伸びた薄い雲 / <1=こんもり丸い雲。個体ごとに変えて同じ形の反復を避ける。
+    private struct Cloud { let x, y, scale, speed, aspect: CGFloat; let seed: UInt64 }
     private let clouds: [Cloud] = [
-        Cloud(x: 0.20, y: 0.12, scale: 1.05, speed: 0.011, seed: 11),
-        Cloud(x: 0.66, y: 0.08, scale: 0.82, speed: 0.017, seed: 22),
-        Cloud(x: 0.46, y: 0.22, scale: 1.22, speed: 0.008, seed: 33),
-        Cloud(x: 0.88, y: 0.28, scale: 0.78, speed: 0.021, seed: 44),
-        Cloud(x: 0.10, y: 0.34, scale: 0.72, speed: 0.014, seed: 55),
-        Cloud(x: 0.58, y: 0.40, scale: 0.92, speed: 0.010, seed: 66),
-        Cloud(x: 0.30, y: 0.48, scale: 0.64, speed: 0.018, seed: 77),
+        Cloud(x: 0.20, y: 0.12, scale: 1.05, speed: 0.011, aspect: 1.35, seed: 11),
+        Cloud(x: 0.66, y: 0.08, scale: 0.82, speed: 0.017, aspect: 0.85, seed: 22),
+        Cloud(x: 0.46, y: 0.22, scale: 1.22, speed: 0.008, aspect: 1.6,  seed: 33),
+        Cloud(x: 0.88, y: 0.28, scale: 0.78, speed: 0.021, aspect: 0.7,  seed: 44),
+        Cloud(x: 0.10, y: 0.34, scale: 0.72, speed: 0.014, aspect: 1.15, seed: 55),
+        Cloud(x: 0.58, y: 0.40, scale: 0.92, speed: 0.010, aspect: 0.95, seed: 66),
+        Cloud(x: 0.30, y: 0.48, scale: 0.64, speed: 0.018, aspect: 1.45, seed: 77),
     ]
 
     var body: some View {
@@ -584,7 +585,7 @@ private struct CloudLayer: View {
                     let frac = (cloud.x + t * cloud.speed).truncatingRemainder(dividingBy: 1.0)
                     let cx = frac * (size.width * 1.6) - size.width * 0.3
                     drawCloud(ctx, size: size, cx: cx, cy: cloud.y * size.height,
-                              scale: cloud.scale, seed: cloud.seed)
+                              scale: cloud.scale, aspect: cloud.aspect, seed: cloud.seed)
                 }
             }
             .blur(radius: 5)   // パフの継ぎ目をならす（かけ過ぎると煙っぽくなる）
@@ -596,14 +597,19 @@ private struct CloudLayer: View {
     /// 土台の横長楕円でパフ間の隙間を埋め(=泡に見せない)、上を明るく下を陰らせて
     /// ボリュームを出し、輪郭のある綿状の塊にする。
     private func drawCloud(_ ctx: GraphicsContext, size: CGSize,
-                           cx: CGFloat, cy: CGFloat, scale: CGFloat, seed: UInt64) {
+                           cx: CGFloat, cy: CGFloat, scale: CGFloat, aspect: CGFloat, seed: UInt64) {
         let baseW = size.width * 0.26 * scale
         let topColor = dark ? Color(white: 0.70) : Color.white
         let midColor = dark ? Color(white: 0.50) : Color(white: 0.88)
         let botColor = dark ? Color(white: 0.30) : Color(white: 0.72)
+        // 横長度。aspect>1で横に広く薄く、<1でこんもり背を高く。面積はほぼ保つ。
+        let hSpread = baseW * 1.7 * aspect
+        let vSpread = baseW * 0.30 / aspect
+        // パフ数も雲ごとにばらつかせる（13〜19）。同じ密度の反復を避ける。
+        let puffCount = 13 + Int(seed % 7)
 
-        // 0. 連続した土台（横長の楕円）。パフの下に敷いて隙間を埋め、塊を一体に見せる。
-        let bodyW = baseW * 2.2, bodyH = baseW * 1.0
+        // 0. 連続した土台（楕円）。パフの下に敷いて隙間を埋め、塊を一体に見せる。
+        let bodyW = baseW * 2.2 * aspect, bodyH = baseW * 1.0 / aspect
         let bodyRect = CGRect(x: cx - bodyW / 2, y: cy - bodyH / 2, width: bodyW, height: bodyH)
         let bodyGrad = Gradient(stops: [
             .init(color: midColor.opacity(dark ? 0.78 : 0.82), location: 0.0),
@@ -619,12 +625,12 @@ private struct CloudLayer: View {
         for layer in 0..<2 {
             var rng = SeededRandom(seed: seed &+ UInt64(layer) &* 1000)
             let shade = layer == 0 ? botColor : topColor
-            let yoff: CGFloat = layer == 0 ? baseW * 0.24 : -baseW * 0.04
+            let yoff: CGFloat = layer == 0 ? baseW * 0.24 / aspect : -baseW * 0.04
             let peak: CGFloat = layer == 0 ? (dark ? 0.60 : 0.52) : (dark ? 0.92 : 0.92)
-            for _ in 0..<16 {
-                // 横に広く・縦は薄く散らして横長の雲塊にする
-                let px = cx + CGFloat(rng.next() - 0.5) * baseW * 1.7
-                let py = cy + yoff + CGFloat(rng.next() - 0.5) * baseW * 0.30
+            for _ in 0..<puffCount {
+                // 横に広く・縦は薄く散らして横長の雲塊にする（aspectで個体差）
+                let px = cx + CGFloat(rng.next() - 0.5) * hSpread
+                let py = cy + yoff + CGFloat(rng.next() - 0.5) * vSpread
                 let r = baseW * (0.26 + CGFloat(rng.next()) * 0.34)   // 小粒寄りで密に重ねる
                 let rect = CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)
                 // 中心を濃く保ち外周で柔らかく消す（綿の塊＋柔らかい縁）
@@ -676,22 +682,22 @@ private struct RainGlassLayer: View {
             Canvas { ctx, size in
                 let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
 
-                // 1. ガラスに付着した水滴（点在）。小粒中心で、ごく一部だけ中粒。
+                // 1. ガラスに付着した細かい水滴（点在）。ほぼ小粒で、ごく一部だけ少し大きい。
                 var rng = SeededRandom(seed: 4242)
-                for _ in 0..<52 {
+                for _ in 0..<58 {
                     let x = CGFloat(rng.next()) * size.width
                     let y = CGFloat(rng.next()) * size.height
                     let s = CGFloat(rng.next())
-                    let r = 2.0 + s * s * 6.5   // 2乗バイアスで多くは小粒・一部が中粒
+                    let r = 1.4 + s * s * 4.0   // 2乗バイアスで大半は粒・一部が小粒
                     drawDroplet(ctx, x: x, y: y, r: r)
                 }
 
-                // 2. 中粒の水滴（手前のアクセント）。大きすぎないよう抑える。
+                // 2. 少しだけ大きい付着滴（アクセント）。垂れない滴が目立ちすぎないよう小さく＆少なく。
                 var rngH = SeededRandom(seed: 777)
-                for _ in 0..<6 {
+                for _ in 0..<4 {
                     let x = CGFloat(rngH.next()) * size.width
                     let y = CGFloat(rngH.next()) * size.height
-                    let r = 7 + CGFloat(rngH.next()) * 5   // 7..12
+                    let r = 4.5 + CGFloat(rngH.next()) * 3   // 4.5..7.5
                     drawDroplet(ctx, x: x, y: y, r: r)
                 }
 
@@ -702,8 +708,8 @@ private struct RainGlassLayer: View {
                     let x = CGFloat(rng2.next()) * size.width
                     let speed = 50 + CGFloat(rng2.next()) * 120          // px/s（ゆっくり垂れる）
                     let phase = CGFloat(rng2.next()) * span
-                    let headR = 3.5 + CGFloat(rng2.next()) * 4           // 3.5..7.5（小さめ）
-                    let bodyLen = headR * (2.4 + CGFloat(rng2.next()) * 2.0)  // 伸び具合
+                    let headR = 2.5 + CGFloat(rng2.next()) * 3           // 2.5..5.5（さらに小さく）
+                    let bodyLen = headR * (2.6 + CGFloat(rng2.next()) * 2.2)  // 伸び具合
                     let trailLen = 30 + CGFloat(rng2.next()) * 70
                     let y = (t * speed + phase).truncatingRemainder(dividingBy: span) - 80
 

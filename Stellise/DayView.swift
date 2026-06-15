@@ -111,6 +111,9 @@ struct DayView: View {
                                     .font(Theme.Typography.clock(96))
                                     // 背景が明るい時は濃紺、暗い時は白
                                     .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
+                                    // 雲や空の濃淡で数字が埋もれないよう、背景の逆方向にソフトな影/ハローを敷く
+                                    .shadow(color: appState.isBrightBackground ? .white.opacity(0.55) : .black.opacity(0.4),
+                                            radius: appState.isBrightBackground ? 12 : 7, y: 1)
                             }
 
                             // 日付
@@ -119,6 +122,8 @@ struct DayView: View {
                                 .tracking(3)
                                 // 背景が明るい時は濃紺、暗い時は白
                                 .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.8) : Theme.Palette.textOnDarkMuted)
+                                .shadow(color: appState.isBrightBackground ? .white.opacity(0.5) : .black.opacity(0.35),
+                                        radius: appState.isBrightBackground ? 8 : 5, y: 1)
 
                             // アラームチップ（朝でも明日のアラームを変更できる導線）
                             Button {
