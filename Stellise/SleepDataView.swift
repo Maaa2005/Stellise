@@ -52,8 +52,6 @@ struct SleepDataView: View {
                         if let advice = appState.lastSleepAdvice, !advice.isEmpty {
                             infoCard(title: "アドバイス", icon: "lightbulb.fill", body: advice)
                         }
-                        sleepStageCard
-
                         Button { isShowingFullReport = true } label: {
                             Text("詳細レポートを見る")
                                 .font(.subheadline.weight(.medium))
@@ -220,105 +218,6 @@ struct SleepDataView: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
         .glassCard(cornerRadius: Theme.Radius.small)
-    }
-
-    // MARK: - 睡眠ステージグラフ（Sleep Insight・暫定ダミー）
-
-    private enum SleepStage {
-        case awake, rem, light, deep
-        var color: Color {
-            switch self {
-            case .awake: return Color(hex: "#2F6BFF")   // 青
-            case .rem:   return Color(hex: "#E0556B")   // 赤
-            case .deep:  return Color(hex: "#F0A85A")   // 橙
-            case .light: return Color(hex: "#5BD6A8")   // 緑
-            }
-        }
-        var level: CGFloat {   // 0(下)〜1(上)
-            switch self {
-            case .awake: return 1.0
-            case .rem:   return 0.72
-            case .light: return 0.45
-            case .deep:  return 0.18
-            }
-        }
-    }
-
-    /// 一晩のステージ推移（暫定ダミー）。実データが入ったら差し替え。
-    private let hypnogram: [SleepStage] = [
-        .awake, .light, .deep, .deep, .light, .rem, .light, .deep, .deep, .light,
-        .rem, .rem, .light, .deep, .light, .awake, .light, .deep, .deep, .light,
-        .rem, .light, .light, .deep, .light, .rem, .rem, .light, .awake, .awake
-    ]
-
-    private var sleepStageCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Sleep Insight")
-                .font(.headline)
-                .foregroundStyle(Theme.Palette.textOnDark)
-
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("6").font(.system(.title, design: .rounded, weight: .bold))
-                Text("hr").font(.subheadline).foregroundStyle(Theme.Palette.textOnDarkMuted)
-                Text("20").font(.system(.title, design: .rounded, weight: .bold))
-                Text("min").font(.subheadline).foregroundStyle(Theme.Palette.textOnDarkMuted)
-            }
-            .foregroundStyle(Theme.Palette.textOnDark)
-
-            Text("ぐっすり眠れた一晩でした。")
-                .font(.subheadline)
-                .foregroundStyle(Theme.Palette.textOnDarkMuted)
-
-            // ヒプノグラム（ステージ別の棒）
-            GeometryReader { geo in
-                let n = hypnogram.count
-                let gap: CGFloat = 2
-                let barW = (geo.size.width - gap * CGFloat(n - 1)) / CGFloat(n)
-                let h = geo.size.height
-                ZStack(alignment: .bottomLeading) {
-                    ForEach(hypnogram.indices, id: \.self) { i in
-                        let st = hypnogram[i]
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(st.color)
-                            .frame(width: barW, height: max(6, h * st.level))
-                            .offset(x: (barW + gap) * CGFloat(i))
-                    }
-                }
-            }
-            .frame(height: 120)
-
-            // 時刻ラベル
-            HStack {
-                ForEach(["1a", "2a", "3a", "4a", "5a", "6a", "7a"], id: \.self) { t in
-                    Text(t).font(.caption2).foregroundStyle(Theme.Palette.textOnDarkMuted)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-
-            Divider().overlay(Color.white.opacity(0.1))
-
-            // 凡例
-            HStack(spacing: 0) {
-                stageLegend(.awake, "6h 20m", "Awake")
-                stageLegend(.rem, "2h 15m", "REM")
-                stageLegend(.deep, "33m", "Deep")
-                stageLegend(.light, "12m", "Light")
-            }
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private func stageLegend(_ st: SleepStage, _ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                Circle().fill(st.color).frame(width: 7, height: 7)
-                Text(value).font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.Palette.textOnDark)
-            }
-            Text(label).font(.caption2).foregroundStyle(Theme.Palette.textOnDarkMuted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func scoreColor(_ s: Int) -> Color {
