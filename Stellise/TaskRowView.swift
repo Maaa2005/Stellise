@@ -13,6 +13,8 @@ struct TaskRowView: View {
     @State private var hasGivenFeedback: Bool = false
     /// 登場アニメ用。onAppearでフェード＋スライドインさせる。
     @State private var appeared: Bool = false
+    /// 遅刻警告のパルス用。常時0↔1で脈動し、警告中だけ見た目に反映する。
+    @State private var pulse: Bool = false
 
     /// 遅刻警告のアクセント。赤枠でなくヘッダーと同じ「オレンジのガラス」で揃える。
     private var delayAccent: Color { Color(red: 1.0, green: 0.55, blue: 0.15) }
@@ -112,16 +114,16 @@ struct TaskRowView: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 16)
-            // 警告時はガラスにオレンジの色味を溶かした「オレンジガラス」にする
+            // 警告時はガラスにオレンジの色味を溶かした「オレンジガラス」にし、ゆっくり脈動させる
             .background(
                 ZStack {
                     Rectangle().fill(.ultraThinMaterial)
-                    Rectangle().fill(delayAccent.opacity(isWarning ? 0.22 : 0))
+                    Rectangle().fill(delayAccent.opacity(isWarning ? (pulse ? 0.30 : 0.13) : 0))
                 }
             )
             .cornerRadius(12)
-            // 警告モードは枠を出さず、オレンジのガラス色味＋わずかな拡大だけで知らせる
-            .scaleEffect(isWarning ? 1.05 : 1.0)
+            // 警告モードは枠を出さず、オレンジガラスの濃淡＋わずかな拡縮の脈動で知らせる
+            .scaleEffect(isWarning ? (pulse ? 1.05 : 1.005) : 1.0)
             .animation(.easeInOut(duration: 0.3), value: isWarning)
         }
         // 登場アニメ: 下から少し浮き上がりながらフェードイン。indexで順にずらして一覧が流れるように出る。
@@ -130,6 +132,10 @@ struct TaskRowView: View {
         .onAppear {
             withAnimation(.easeOut(duration: 0.45).delay(Double(index) * 0.08)) {
                 appeared = true
+            }
+            // 遅刻警告の脈動を常時走らせる（警告中だけ見た目に反映される）
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                pulse = true
             }
         }
     }
