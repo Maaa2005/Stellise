@@ -120,7 +120,8 @@ enum WeatherCondition {
         case .clear:  return [Color(hex: "#3B86E0"), Color(hex: "#79B8F2"), Color(hex: "#D6EEFC")]
         case .cloudy: return [Color(hex: "#4C5468"), Color(hex: "#8E99AE")]
         case .rain:   return [Color(hex: "#33405A"), Color(hex: "#5E6B86")]
-        case .dawn:   return [Color(hex: "#2A2A4E"), Color(hex: "#5B4B7A")]
+        // 早朝: 夕方と同じ暖色トーン。上=藍 → 中=紫 → 下=朝焼けのピーチ。
+        case .dawn:   return [Color(hex: "#262049"), Color(hex: "#6E4A78"), Color(hex: "#E8A878")]
         // 夕暮れ: 上=藍 → 中=マゼンタ → 下=夕焼けのオレンジ
         case .dusk:   return [Color(hex: "#262049"), Color(hex: "#6E4A78"), Color(hex: "#D08A66")]
         case .snow:   return [Color(hex: "#5A6B86"), Color(hex: "#C2CCE0")]

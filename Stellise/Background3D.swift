@@ -99,7 +99,7 @@ private struct CelestialSceneView: UIViewRepresentable {
             return
         }
         // 時刻変化（10分ごと）→ 天体だけを新しい弧上の位置へゆっくり移動
-        let isNight = condition == .night || condition == .dawn
+        let isNight = condition == .night
         let target = SceneBuilder.celestialPosition(hour: hour, isNight: isNight)
         let move = SCNAction.move(to: target, duration: 3.0)
         move.timingMode = .easeInEaseOut
@@ -151,7 +151,7 @@ private enum SceneBuilder {
         addCamera(to: scene, bloom: style.bloom, threshold: style.bloomThreshold, blur: style.bloomBlur)
         addAmbient(to: scene, condition: condition)
         addKeyLight(to: scene, color: style.lightColor)
-        let isNight = condition == .night || condition == .dawn
+        let isNight = condition == .night
         let body = addCelestialBody(to: scene, style: style,
                                     position: celestialPosition(hour: hour, isNight: isNight))
         if style.showStars { addStars(to: scene) }
@@ -192,14 +192,15 @@ private enum SceneBuilder {
                 radius: 0.9, constantLit: false, isMoon: true,
                 glowPeakAlpha: 0.22, glowScale: 3.2)
         case .dawn:
+            // 早朝の昇る太陽。夕方と同じ暖色フレアだが、朝焼けの金桃色に。
             return CelestialStyle(
-                color: UIColor(red: 0.84, green: 0.80, blue: 0.86, alpha: 1),
-                emission: UIColor(red: 0.74, green: 0.62, blue: 0.72, alpha: 1),
-                emissionIntensity: 0.06,
-                lightColor: UIColor(red: 1.0, green: 0.92, blue: 0.86, alpha: 1),
-                showStars: true, bloom: 0.3, bloomThreshold: 0.58, bloomBlur: 16,
-                radius: 0.9, constantLit: false, isMoon: true,
-                glowPeakAlpha: 0.26, glowScale: 3.6)
+                color: UIColor(red: 1.0, green: 0.94, blue: 0.84, alpha: 1),
+                emission: UIColor(red: 1.0, green: 0.78, blue: 0.55, alpha: 1),   // 朝焼けの金桃
+                emissionIntensity: 0.0,
+                lightColor: UIColor(red: 1.0, green: 0.88, blue: 0.76, alpha: 1),
+                showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
+                radius: 0.36, constantLit: true, isMoon: false,
+                glowPeakAlpha: 0.95, glowScale: 21)
         case .clear:
             // 晴れの太陽: iOS天気アプリ風の自然なフレア。小さい白熱コア＋大きく柔らかいブルーム。
             return CelestialStyle(
@@ -207,9 +208,9 @@ private enum SceneBuilder {
                 emission: UIColor(red: 1.0, green: 0.95, blue: 0.82, alpha: 1),  // 柔らかい暖色グロウ
                 emissionIntensity: 0.0,
                 lightColor: UIColor(red: 1.0, green: 0.97, blue: 0.9, alpha: 1),
-                showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
+                showStars: false, bloom: 0.5, bloomThreshold: 0.54, bloomBlur: 34,
                 radius: 0.34, constantLit: true, isMoon: false,
-                glowPeakAlpha: 0.95, glowScale: 21)
+                glowPeakAlpha: 0.95, glowScale: 23)
         case .dusk:
             // 夕暮れの沈む太陽（暖色の柔らかいフレア）。日中と同じ太陽だが赤橙に。
             return CelestialStyle(
@@ -371,17 +372,18 @@ private enum SceneBuilder {
         return renderer.image { ctx in
             let c = ctx.cgContext
 
-            // 1. 大きく柔らかいブルーム（中心は白熱、外周まで自然に減衰）
+            // 1. 大きく柔らかいブルーム（中心の白熱から外周まで早めに・連続的に減衰）。
+            //    中心の高アルフ域を持たせず最初から落とすことで、くっきりした光の縁を作らない。
             let baseColors = [
                 hotCore.withAlphaComponent(peakAlpha).cgColor,
-                hotCore.withAlphaComponent(peakAlpha * 0.62).cgColor,
-                color.withAlphaComponent(peakAlpha * 0.30).cgColor,
-                color.withAlphaComponent(peakAlpha * 0.12).cgColor,
-                color.withAlphaComponent(peakAlpha * 0.04).cgColor,
+                hotCore.withAlphaComponent(peakAlpha * 0.5).cgColor,
+                color.withAlphaComponent(peakAlpha * 0.24).cgColor,
+                color.withAlphaComponent(peakAlpha * 0.10).cgColor,
+                color.withAlphaComponent(peakAlpha * 0.035).cgColor,
                 color.withAlphaComponent(0.0).cgColor,
             ] as CFArray
             if let g = CGGradient(colorsSpace: space, colors: baseColors,
-                                  locations: [0.0, 0.05, 0.16, 0.34, 0.62, 1.0]) {
+                                  locations: [0.0, 0.10, 0.24, 0.44, 0.70, 1.0]) {
                 c.drawRadialGradient(g, startCenter: center, startRadius: 0,
                                      endCenter: center, endRadius: size * 0.5, options: [])
             }
