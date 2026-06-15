@@ -118,7 +118,8 @@ enum WeatherCondition {
         switch self {
         // iOS天気アプリ朝の空イメージ。上=澄んだ青→下=地平の淡い光。明るくリアルに。
         case .clear:  return [Color(hex: "#3B86E0"), Color(hex: "#79B8F2"), Color(hex: "#D6EEFC")]
-        case .cloudy: return [Color(hex: "#4C5468"), Color(hex: "#8E99AE")]
+        // 曇り: 暗い曇天でなく明るい薄曇りのブルーグレー（上→下で明るく）。
+        case .cloudy: return [Color(hex: "#73849E"), Color(hex: "#A6B4C9"), Color(hex: "#D6DEEA")]
         case .rain:   return [Color(hex: "#33405A"), Color(hex: "#5E6B86")]
         // 早朝: 夕方と同じ暖色トーン。上=藍 → 中=紫 → 下=朝焼けのピーチ。
         case .dawn:   return [Color(hex: "#262049"), Color(hex: "#6E4A78"), Color(hex: "#E8A878")]
