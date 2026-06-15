@@ -35,7 +35,9 @@ struct SleepDataView: View {
                         .padding(.top, 28)
 
                     if hasReport {
+                        weekRingsRow
                         scoreRingCard
+                        sleepStatsRow
                     } else {
                         emptyCard
                     }
@@ -50,6 +52,8 @@ struct SleepDataView: View {
                         if let advice = appState.lastSleepAdvice, !advice.isEmpty {
                             infoCard(title: "アドバイス", icon: "lightbulb.fill", body: advice)
                         }
+                        sleepStageCard
+
                         Button { isShowingFullReport = true } label: {
                             Text("詳細レポートを見る")
                                 .font(.subheadline.weight(.medium))
@@ -82,16 +86,66 @@ struct SleepDataView: View {
 
     // MARK: - スコア（リングゲージ）
 
-    /// パープル〜ブルーのヒーロー・スコア円。大きく中央に置き、カウントアップで魅せる。
+    // MARK: - 週リング（M〜S）
+
+    /// 1週間ぶんのスコア。過去=実績(暫定ダミー)、今日=最新スコア、未来=nil(空リング)。
+    private var weekRings: [(label: String, score: Int?, isToday: Bool)] {
+        let labels = ["M", "T", "W", "T", "F", "S", "S"]
+        let wd = Calendar.current.component(.weekday, from: Date()) // 1=日..7=土
+        let todayIdx = (wd + 5) % 7                                  // 月=0..日=6
+        let dummies = [68, 74, 61, 80, 72, 65, 70]
+        // 見た目優先: 平日(M〜F)はダミーで点灯、週末(S,S)は空。今日は最新スコアで上書き。
+        return labels.enumerated().map { i, l in
+            let score: Int?
+            if i == todayIdx { score = appState.lastSleepScore > 0 ? appState.lastSleepScore : dummies[i] }
+            else if i <= 4 { score = dummies[i] }   // 平日は実績(暫定ダミー)
+            else { score = nil }                    // 週末は空リング
+            return (l, score, i == todayIdx)
+        }
+    }
+
+    private var weekRingsRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(weekRings.enumerated()), id: \.offset) { _, d in
+                dayRing(label: d.label, score: d.score, isToday: d.isToday)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func dayRing(label: String, score: Int?, isToday: Bool) -> some View {
+        let blue = LinearGradient(colors: [Color(hex: "#2F6BFF"), Color(hex: "#5AD1E0")],
+                                  startPoint: .top, endPoint: .bottom)
+        return VStack(spacing: 7) {
+            ZStack {
+                Circle().stroke(Color.white.opacity(0.10), lineWidth: isToday ? 4.5 : 3.5)
+                if let s = score {
+                    Circle()
+                        .trim(from: 0, to: CGFloat(s) / 100)
+                        .stroke(blue, style: StrokeStyle(lineWidth: isToday ? 4.5 : 3.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                if isToday {
+                    Circle().fill(Color(hex: "#2F6BFF").opacity(0.18)).padding(6)
+                }
+            }
+            .frame(width: 36, height: 36)
+            Text(label)
+                .font(.caption2.weight(isToday ? .bold : .regular))
+                .foregroundStyle(isToday ? Color(hex: "#5AB6FF") : Theme.Palette.textOnDarkMuted)
+        }
+    }
+
+    /// ブルー〜シアンのヒーロー・スコア円。大きく中央に置き、カウントアップで魅せる。
     private var scoreRingCard: some View {
         let score = appState.lastSleepScore
         let ringSize: CGFloat = 220
-        // パープル→ブルーのアングラーグラデ（先頭=末尾でつなぎ目を消す）
+        // ブルー〜シアンのアングラーグラデ（先頭=末尾でつなぎ目を消す）
         let ringGradient = AngularGradient(
             gradient: Gradient(colors: [
-                Color(hex: "#6C5CE0"), Color(hex: "#8B7CF6"),
-                Color(hex: "#6CA8FF"), Color(hex: "#5AD1E0"),
-                Color(hex: "#6C5CE0")
+                Color(hex: "#2F6BFF"), Color(hex: "#4F8DFF"),
+                Color(hex: "#5AB6FF"), Color(hex: "#5AD1E0"),
+                Color(hex: "#2F6BFF")
             ]),
             center: .center, startAngle: .degrees(-90), endAngle: .degrees(270))
 
@@ -110,7 +164,7 @@ struct SleepDataView: View {
                     .trim(from: 0, to: ringProgress)
                     .stroke(ringGradient, style: StrokeStyle(lineWidth: 16, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: Color(hex: "#8B7CF6").opacity(0.5), radius: 12)
+                    .shadow(color: Color(hex: "#4F8DFF").opacity(0.5), radius: 12)
 
                 // 中央: カウントアップする大きなスコア ＋ / 100 ＋ ラベル
                 VStack(spacing: 2) {
@@ -138,6 +192,133 @@ struct SleepDataView: View {
                 countUp = Double(score)
             }
         }
+    }
+
+    // MARK: - 睡眠時間・REM カード（暫定ダミー）
+
+    private var sleepStatsRow: some View {
+        HStack(spacing: 12) {
+            statCard(dot: Color(hex: "#2F6BFF"), value: "6h 20m", label: "Total sleep")
+            statCard(dot: Color(hex: "#5AD1E0"), value: "1h 11m", label: "REM Sleep")
+        }
+    }
+
+    private func statCard(dot: Color, value: String, label: String) -> some View {
+        HStack(spacing: 10) {
+            Circle().fill(dot).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.textOnDark)
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .glassCard(cornerRadius: Theme.Radius.small)
+    }
+
+    // MARK: - 睡眠ステージグラフ（Sleep Insight・暫定ダミー）
+
+    private enum SleepStage {
+        case awake, rem, light, deep
+        var color: Color {
+            switch self {
+            case .awake: return Color(hex: "#2F6BFF")   // 青
+            case .rem:   return Color(hex: "#E0556B")   // 赤
+            case .deep:  return Color(hex: "#F0A85A")   // 橙
+            case .light: return Color(hex: "#5BD6A8")   // 緑
+            }
+        }
+        var level: CGFloat {   // 0(下)〜1(上)
+            switch self {
+            case .awake: return 1.0
+            case .rem:   return 0.72
+            case .light: return 0.45
+            case .deep:  return 0.18
+            }
+        }
+    }
+
+    /// 一晩のステージ推移（暫定ダミー）。実データが入ったら差し替え。
+    private let hypnogram: [SleepStage] = [
+        .awake, .light, .deep, .deep, .light, .rem, .light, .deep, .deep, .light,
+        .rem, .rem, .light, .deep, .light, .awake, .light, .deep, .deep, .light,
+        .rem, .light, .light, .deep, .light, .rem, .rem, .light, .awake, .awake
+    ]
+
+    private var sleepStageCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Sleep Insight")
+                .font(.headline)
+                .foregroundStyle(Theme.Palette.textOnDark)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("6").font(.system(.title, design: .rounded, weight: .bold))
+                Text("hr").font(.subheadline).foregroundStyle(Theme.Palette.textOnDarkMuted)
+                Text("20").font(.system(.title, design: .rounded, weight: .bold))
+                Text("min").font(.subheadline).foregroundStyle(Theme.Palette.textOnDarkMuted)
+            }
+            .foregroundStyle(Theme.Palette.textOnDark)
+
+            Text("ぐっすり眠れた一晩でした。")
+                .font(.subheadline)
+                .foregroundStyle(Theme.Palette.textOnDarkMuted)
+
+            // ヒプノグラム（ステージ別の棒）
+            GeometryReader { geo in
+                let n = hypnogram.count
+                let gap: CGFloat = 2
+                let barW = (geo.size.width - gap * CGFloat(n - 1)) / CGFloat(n)
+                let h = geo.size.height
+                ZStack(alignment: .bottomLeading) {
+                    ForEach(hypnogram.indices, id: \.self) { i in
+                        let st = hypnogram[i]
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(st.color)
+                            .frame(width: barW, height: max(6, h * st.level))
+                            .offset(x: (barW + gap) * CGFloat(i))
+                    }
+                }
+            }
+            .frame(height: 120)
+
+            // 時刻ラベル
+            HStack {
+                ForEach(["1a", "2a", "3a", "4a", "5a", "6a", "7a"], id: \.self) { t in
+                    Text(t).font(.caption2).foregroundStyle(Theme.Palette.textOnDarkMuted)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            Divider().overlay(Color.white.opacity(0.1))
+
+            // 凡例
+            HStack(spacing: 0) {
+                stageLegend(.awake, "6h 20m", "Awake")
+                stageLegend(.rem, "2h 15m", "REM")
+                stageLegend(.deep, "33m", "Deep")
+                stageLegend(.light, "12m", "Light")
+            }
+        }
+        .padding(20)
+        .glassCard()
+    }
+
+    private func stageLegend(_ st: SleepStage, _ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Circle().fill(st.color).frame(width: 7, height: 7)
+                Text(value).font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.Palette.textOnDark)
+            }
+            Text(label).font(.caption2).foregroundStyle(Theme.Palette.textOnDarkMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func scoreColor(_ s: Int) -> Color {
