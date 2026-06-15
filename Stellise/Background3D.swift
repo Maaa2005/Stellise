@@ -568,24 +568,25 @@ private struct CloudLayer: View {
     // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], 横長度, パフseed)
     // aspect>1=横に伸びた薄い雲 / <1=こんもり丸い雲。個体ごとに変えて同じ形の反復を避ける。
     private struct Cloud { let x, y, scale, speed, aspect: CGFloat; let seed: UInt64 }
+    // 上部に密集させ、下にいくほど数を減らす（自然な雲行き）。yは上寄せに配置。
     private let baseClouds: [Cloud] = [
-        Cloud(x: 0.20, y: 0.12, scale: 1.05, speed: 0.011, aspect: 1.35, seed: 11),
-        Cloud(x: 0.66, y: 0.08, scale: 0.82, speed: 0.017, aspect: 0.85, seed: 22),
-        Cloud(x: 0.46, y: 0.22, scale: 1.22, speed: 0.008, aspect: 1.6,  seed: 33),
-        Cloud(x: 0.88, y: 0.28, scale: 0.78, speed: 0.021, aspect: 0.7,  seed: 44),
-        Cloud(x: 0.10, y: 0.34, scale: 0.72, speed: 0.014, aspect: 1.15, seed: 55),
-        Cloud(x: 0.58, y: 0.40, scale: 0.92, speed: 0.010, aspect: 0.95, seed: 66),
-        Cloud(x: 0.30, y: 0.48, scale: 0.64, speed: 0.018, aspect: 1.45, seed: 77),
+        Cloud(x: 0.20, y: 0.07, scale: 1.05, speed: 0.011, aspect: 1.35, seed: 11),
+        Cloud(x: 0.66, y: 0.05, scale: 0.82, speed: 0.017, aspect: 0.85, seed: 22),
+        Cloud(x: 0.46, y: 0.14, scale: 1.22, speed: 0.008, aspect: 1.6,  seed: 33),
+        Cloud(x: 0.88, y: 0.17, scale: 0.78, speed: 0.021, aspect: 0.7,  seed: 44),
+        Cloud(x: 0.10, y: 0.23, scale: 0.72, speed: 0.014, aspect: 1.15, seed: 55),
+        Cloud(x: 0.58, y: 0.30, scale: 0.92, speed: 0.010, aspect: 0.95, seed: 66),
+        Cloud(x: 0.32, y: 0.39, scale: 0.64, speed: 0.018, aspect: 1.45, seed: 77),
     ]
-    // 雨用の追加雲。隙間と下方を埋めて空全体を覆う厚い雲行きに。
+    // 雨用の追加雲。上部の隙間を厚く埋め、中ほどまでで止める（下方には足さない）。
     private let denseClouds: [Cloud] = [
-        Cloud(x: 0.40, y: 0.05, scale: 0.9,  speed: 0.013, aspect: 1.5,  seed: 88),
-        Cloud(x: 0.78, y: 0.17, scale: 1.0,  speed: 0.009, aspect: 1.25, seed: 99),
-        Cloud(x: 0.04, y: 0.20, scale: 0.85, speed: 0.016, aspect: 0.9,  seed: 111),
-        Cloud(x: 0.50, y: 0.33, scale: 1.1,  speed: 0.012, aspect: 1.7,  seed: 122),
-        Cloud(x: 0.84, y: 0.44, scale: 0.8,  speed: 0.019, aspect: 1.1,  seed: 133),
-        Cloud(x: 0.16, y: 0.54, scale: 0.95, speed: 0.011, aspect: 1.55, seed: 144),
-        Cloud(x: 0.68, y: 0.56, scale: 0.7,  speed: 0.015, aspect: 0.8,  seed: 155),
+        Cloud(x: 0.40, y: 0.03, scale: 0.9,  speed: 0.013, aspect: 1.5,  seed: 88),
+        Cloud(x: 0.78, y: 0.10, scale: 1.0,  speed: 0.009, aspect: 1.25, seed: 99),
+        Cloud(x: 0.04, y: 0.12, scale: 0.85, speed: 0.016, aspect: 0.9,  seed: 111),
+        Cloud(x: 0.50, y: 0.20, scale: 1.1,  speed: 0.012, aspect: 1.7,  seed: 122),
+        Cloud(x: 0.84, y: 0.27, scale: 0.8,  speed: 0.019, aspect: 1.1,  seed: 133),
+        Cloud(x: 0.16, y: 0.33, scale: 0.95, speed: 0.011, aspect: 1.55, seed: 144),
+        Cloud(x: 0.70, y: 0.43, scale: 0.7,  speed: 0.015, aspect: 0.8,  seed: 155),
     ]
     private var clouds: [Cloud] { dense ? baseClouds + denseClouds : baseClouds }
 
@@ -597,8 +598,13 @@ private struct CloudLayer: View {
                     // 一方向にゆっくり流して画面外で折り返す（折返しはオフスクリーンで起こる）
                     let frac = (cloud.x + t * cloud.speed).truncatingRemainder(dividingBy: 1.0)
                     let cx = frac * (size.width * 1.6) - size.width * 0.3
-                    drawCloud(ctx, size: size, cx: cx, cy: cloud.y * size.height,
-                              scale: cloud.scale, aspect: cloud.aspect, seed: cloud.seed)
+                    // 下にいくほど薄くフェード（上=濃い、下=淡い）。配置の上寄せと合わせて密度勾配を作る。
+                    let fade = max(0.28, min(1.0, 1.18 - cloud.y * 1.7))
+                    ctx.drawLayer { layer in
+                        layer.opacity = fade
+                        drawCloud(layer, size: size, cx: cx, cy: cloud.y * size.height,
+                                  scale: cloud.scale, aspect: cloud.aspect, seed: cloud.seed)
+                    }
                 }
             }
             .blur(radius: 5)   // パフの継ぎ目をならす（かけ過ぎると煙っぽくなる）
