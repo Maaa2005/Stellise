@@ -342,9 +342,12 @@ struct HeaderView: View {
         }
     }
     
-    // ★ カラフルな色分けを廃止し、統一感のあるモノトーンへ (遅延時のみ赤)
+    /// 遅延時のアクセント。赤枠でなく「オレンジのガラス」で上品に警告する。
+    private var delayAccent: Color { Color(red: 1.0, green: 0.55, blue: 0.15) }
+
+    // ★ カラフルな色分けを廃止し、統一感のあるモノトーンへ (遅延時のみオレンジ)
     var statusColor: Color {
-        if isDelay { return .red }
+        if isDelay { return delayAccent }
         return .primary
     }
     
@@ -355,9 +358,9 @@ struct HeaderView: View {
                 // アイコン
                 Image(systemName: modeIcon)
                     .font(.title3)
-                    .foregroundStyle(isDelay ? .red : .primary.opacity(0.8))
+                    .foregroundStyle(isDelay ? delayAccent : .primary.opacity(0.8))
                     .frame(width: 40, height: 40)
-                    .background(isDelay ? Color.red.opacity(0.15) : Color.primary.opacity(0.08))
+                    .background(isDelay ? delayAccent.opacity(0.18) : Color.primary.opacity(0.08))
                     .clipShape(Circle())
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -369,33 +372,35 @@ struct HeaderView: View {
                         Text(departureTime)
                             .font(.title3)
                             .fontWeight(.semibold)
-                            .foregroundStyle(isDelay ? .red : .primary)
+                            .foregroundStyle(isDelay ? delayAccent : .primary)
                     }
-                    
+
                     // 手段・状況・所要時間
                     Text("\(modeLabel) (\(routeSummary)) • \(travelTime)")
                         .font(.caption2)
-                        .foregroundStyle(isDelay ? .red.opacity(0.8) : .secondary)
+                        .foregroundStyle(isDelay ? delayAccent.opacity(0.85) : .secondary)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             // 透過ガラス（空が透ける）。Materialへの .opacity は効かないので
             // シェイプにビュー修飾子の .opacity を掛けて確実に半透明化する。
+            // 遅延時は赤枠でなく、ガラスにオレンジの色味を溶かした「オレンジガラス」にする。
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(.ultraThinMaterial)
                     .opacity(0.6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(delayAccent.opacity(isDelay ? 0.22 : 0))
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: 20))
+            // 縁: 通常は淡い白、遅延時は柔らかいオレンジの縁
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(.primary.opacity(0.28), lineWidth: 0.6)
-            )
-            // 遅延時のみ細い赤い線を出す
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(isDelay ? Color.red.opacity(0.4) : Color.clear, lineWidth: 0.5)
+                    .strokeBorder(isDelay ? delayAccent.opacity(0.55) : .primary.opacity(0.28),
+                                  lineWidth: isDelay ? 1.0 : 0.6)
             )
             // 明るい空では濃色文字、暗い空では白文字に切替（ガラスは透過のまま）
             .environment(\.colorScheme, isBright ? .light : .dark)
