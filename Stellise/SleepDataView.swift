@@ -14,6 +14,9 @@ struct SleepDataView: View {
 
     @State private var isShowingSettings = false
     @State private var isShowingFullReport = false
+    /// ヒーロー・スコア円のアニメ用。onAppearで0→スコアまでリングとカウントを伸ばす。
+    @State private var ringProgress: CGFloat = 0
+    @State private var countUp: Double = 0
 
     private var hasReport: Bool { appState.lastSleepScore > 0 }
     private var alarmText: String {
@@ -79,42 +82,62 @@ struct SleepDataView: View {
 
     // MARK: - スコア（リングゲージ）
 
+    /// パープル〜ブルーのヒーロー・スコア円。大きく中央に置き、カウントアップで魅せる。
     private var scoreRingCard: some View {
         let score = appState.lastSleepScore
-        return HStack(spacing: 22) {
+        let ringSize: CGFloat = 220
+        // パープル→ブルーのアングラーグラデ（先頭=末尾でつなぎ目を消す）
+        let ringGradient = AngularGradient(
+            gradient: Gradient(colors: [
+                Color(hex: "#6C5CE0"), Color(hex: "#8B7CF6"),
+                Color(hex: "#6CA8FF"), Color(hex: "#5AD1E0"),
+                Color(hex: "#6C5CE0")
+            ]),
+            center: .center, startAngle: .degrees(-90), endAngle: .degrees(270))
+
+        return VStack(spacing: 18) {
+            Text("昨晩の睡眠")
+                .font(.subheadline)
+                .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             ZStack {
+                // トラック
                 Circle()
-                    .stroke(Color.white.opacity(0.12), lineWidth: 10)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 16)
+                // 進捗（パープル〜ブルー）＋発光
                 Circle()
-                    .trim(from: 0, to: min(CGFloat(score) / 100, 1))
-                    .stroke(
-                        AngularGradient(colors: [scoreColor(score).opacity(0.7), scoreColor(score)],
-                                        center: .center),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .trim(from: 0, to: ringProgress)
+                    .stroke(ringGradient, style: StrokeStyle(lineWidth: 16, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                VStack(spacing: 0) {
-                    Text("\(score)")
-                        .font(.system(size: 40, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.Palette.textOnDark)
-                    Text("点")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                    .shadow(color: Color(hex: "#8B7CF6").opacity(0.5), radius: 12)
+
+                // 中央: カウントアップする大きなスコア ＋ / 100 ＋ ラベル
+                VStack(spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        CountUpNumber(value: countUp)
+                        Text("/100")
+                            .font(.system(size: 20, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                    }
+                    Text(scoreLabel(score))
+                        .font(.headline)
+                        .foregroundStyle(scoreColor(score))
                 }
             }
-            .frame(width: 104, height: 104)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("昨晩の睡眠")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
-                Text(scoreLabel(score))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(scoreColor(score))
-            }
-            Spacer(minLength: 0)
+            .frame(width: ringSize, height: ringSize)
+            .frame(maxWidth: .infinity)
         }
-        .padding(22)
+        .padding(26)
         .glassCard()
+        .onAppear {
+            // 0 → スコアへ、リングとカウントを同時にイージング
+            ringProgress = 0; countUp = 0
+            withAnimation(.easeOut(duration: 1.1)) {
+                ringProgress = min(CGFloat(score) / 100, 1)
+                countUp = Double(score)
+            }
+        }
     }
 
     private func scoreColor(_ s: Int) -> Color {
@@ -204,6 +227,21 @@ struct SleepDataView: View {
         .frame(maxWidth: .infinity)
         .padding(32)
         .glassCard()
+    }
+
+    /// カウントアップする大きなスコア数字。Animatable準拠で毎フレーム描き直す。
+    private struct CountUpNumber: View, Animatable {
+        var value: Double
+        var animatableData: Double {
+            get { value }
+            set { value = newValue }
+        }
+        var body: some View {
+            Text("\(Int(value.rounded()))")
+                .font(.system(size: 76, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.Palette.textOnDark)
+                .monospacedDigit()
+        }
     }
 
     /// 右上に小さく置く設定ボタン。
