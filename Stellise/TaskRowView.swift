@@ -103,13 +103,8 @@ struct TaskRowView: View {
                 }
             )
             .cornerRadius(12)
-            // 警告モードの時だけ拡大＋柔らかいオレンジの縁を適用（赤枠は廃止）
+            // 警告モードは枠を出さず、オレンジのガラス色味＋わずかな拡大だけで知らせる
             .scaleEffect(isWarning ? 1.05 : 1.0)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(isWarning ? delayAccent.opacity(0.6) : Color.clear,
-                                  lineWidth: isWarning ? 1.2 : 0)
-            )
             .animation(.easeInOut(duration: 0.3), value: isWarning)
         }
     }
