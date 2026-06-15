@@ -222,14 +222,16 @@ private enum SceneBuilder {
                 radius: 0.36, constantLit: true, isMoon: false,
                 glowPeakAlpha: 0.95, glowScale: 21)
         case .cloudy:
+            // 雲ごしの太陽。ディスクを小さく・グロウを広く柔らかくして、輪郭のない
+            // にじんだ光のグラデーションにする（雲の向こうでぼんやり光る感じ）。
             return CelestialStyle(
                 color: UIColor(red: 0.97, green: 0.98, blue: 1.0, alpha: 1),     // 雲ごしの淡い光
                 emission: UIColor(red: 0.9, green: 0.93, blue: 0.99, alpha: 1),
                 emissionIntensity: 0.0,
                 lightColor: UIColor(white: 0.95, alpha: 1),
-                showStars: false, bloom: 0.5, bloomThreshold: 0.5, bloomBlur: 26,
-                radius: 0.6, constantLit: true, isMoon: false,
-                glowPeakAlpha: 0.6, glowScale: 8)
+                showStars: false, bloom: 0.5, bloomThreshold: 0.42, bloomBlur: 42,
+                radius: 0.4, constantLit: true, isMoon: false,
+                glowPeakAlpha: 0.5, glowScale: 15)
         case .rain:
             return CelestialStyle(
                 color: UIColor(red: 0.62, green: 0.68, blue: 0.85, alpha: 1),
