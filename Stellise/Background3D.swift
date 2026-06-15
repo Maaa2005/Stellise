@@ -607,7 +607,7 @@ private struct CloudLayer: View {
                     }
                 }
             }
-            .blur(radius: 5)   // パフの継ぎ目をならす（かけ過ぎると煙っぽくなる）
+            .blur(radius: 8)   // 輪郭を羽毛状にぼかす（はっきりした縁をなくす）
         }
         .allowsHitTesting(false)
     }
@@ -631,9 +631,10 @@ private struct CloudLayer: View {
         let bodyW = baseW * 2.2 * aspect, bodyH = baseW * 1.0 / aspect
         let bodyRect = CGRect(x: cx - bodyW / 2, y: cy - bodyH / 2, width: bodyW, height: bodyH)
         let bodyGrad = Gradient(stops: [
-            .init(color: midColor.opacity(dark ? 0.78 : 0.82), location: 0.0),
-            .init(color: midColor.opacity(dark ? 0.60 : 0.66), location: 0.55),
-            .init(color: midColor.opacity(0.0), location: 1.0),
+            .init(color: midColor.opacity(dark ? 0.70 : 0.74), location: 0.0),
+            .init(color: midColor.opacity(dark ? 0.42 : 0.46), location: 0.45),
+            .init(color: midColor.opacity(dark ? 0.14 : 0.16), location: 0.78),
+            .init(color: midColor.opacity(0.0), location: 1.0),   // 縁を長く引いてぼかす
         ])
         ctx.fill(Path(ellipseIn: bodyRect),
                  with: .radialGradient(bodyGrad,
@@ -649,14 +650,19 @@ private struct CloudLayer: View {
             for _ in 0..<puffCount {
                 // 横に広く・縦は薄く散らして横長の雲塊にする（aspectで個体差）
                 let px = cx + CGFloat(rng.next() - 0.5) * hSpread
-                let py = cy + yoff + CGFloat(rng.next() - 0.5) * vSpread
-                let r = baseW * (0.26 + CGFloat(rng.next()) * 0.34)   // 小粒寄りで密に重ねる
+                // 縦の散りを大きくして、陰り(layer0)が一様な帯にならずまだらになるように
+                let py = cy + yoff + CGFloat(rng.next() - 0.5) * vSpread * (layer == 0 ? 1.7 : 1.0)
+                let r = baseW * (0.22 + CGFloat(rng.next()) * 0.5)   // 大小の差を広げて輪郭を不均一に
+                // パフごとに濃さをランダム化（影を斑に・明部も自然なムラ）
+                let jitter = layer == 0 ? (0.3 + CGFloat(rng.next()) * 0.7)   // 影: 0.3〜1.0で濃淡バラバラ
+                                        : (0.7 + CGFloat(rng.next()) * 0.3)   // 明部: 0.7〜1.0
+                let p = peak * jitter
                 let rect = CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)
-                // 中心を濃く保ち外周で柔らかく消す（綿の塊＋柔らかい縁）
+                // 中心から早めに減衰させ外周を長く引く＝羽毛状の柔らかい縁（はっきりした輪郭を消す）
                 let grad = Gradient(stops: [
-                    .init(color: shade.opacity(peak), location: 0.0),
-                    .init(color: shade.opacity(peak * 0.9), location: 0.55),
-                    .init(color: shade.opacity(peak * 0.45), location: 0.8),
+                    .init(color: shade.opacity(p), location: 0.0),
+                    .init(color: shade.opacity(p * 0.62), location: 0.4),
+                    .init(color: shade.opacity(p * 0.22), location: 0.72),
                     .init(color: shade.opacity(0.0), location: 1.0),
                 ])
                 ctx.fill(Path(ellipseIn: rect),
