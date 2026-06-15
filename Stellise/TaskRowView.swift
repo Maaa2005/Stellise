@@ -9,7 +9,10 @@ struct TaskRowView: View {
     @EnvironmentObject var appState: AppState
     
     @State private var hasGivenFeedback: Bool = false
-    
+
+    /// 遅刻警告のアクセント。赤枠でなくヘッダーと同じ「オレンジのガラス」で揃える。
+    private var delayAccent: Color { Color(red: 1.0, green: 0.55, blue: 0.15) }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { context in
             let startTime = appState.parseTime(task.time) ?? Date()
@@ -49,7 +52,7 @@ struct TaskRowView: View {
                     
                     Text("\(task.time) • \(remainingText)")
                         .font(.subheadline)
-                        .foregroundStyle(isWarning ? .red : .secondary)
+                        .foregroundStyle(isWarning ? delayAccent : .secondary)
                 }
                 Spacer()
                 
@@ -92,13 +95,20 @@ struct TaskRowView: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 16)
-            .background(.ultraThinMaterial)
+            // 警告時はガラスにオレンジの色味を溶かした「オレンジガラス」にする
+            .background(
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    Rectangle().fill(delayAccent.opacity(isWarning ? 0.22 : 0))
+                }
+            )
             .cornerRadius(12)
-            // 警告モードの時だけ赤枠と拡大アニメーションを適用
+            // 警告モードの時だけ拡大＋柔らかいオレンジの縁を適用（赤枠は廃止）
             .scaleEffect(isWarning ? 1.05 : 1.0)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isWarning ? Color.red : Color.clear, lineWidth: isWarning ? 2 : 0)
+                    .strokeBorder(isWarning ? delayAccent.opacity(0.6) : Color.clear,
+                                  lineWidth: isWarning ? 1.2 : 0)
             )
             .animation(.easeInOut(duration: 0.3), value: isWarning)
         }
