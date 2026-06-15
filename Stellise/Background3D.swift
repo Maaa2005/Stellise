@@ -548,7 +548,7 @@ private struct WeatherOverlayView: View {
             CloudLayer(dark: false)
         case .rain:
             ZStack {
-                CloudLayer(dark: true)   // 奥: 厚い雨雲
+                CloudLayer(dark: true, dense: true)   // 奥: 厚い雨雲（雲数を増やす）
                 RainLayer()              // 中: 降る雨
                 RainGlassLayer()         // 最前面: 画面(ガラス)に当たって垂れる水滴
             }
@@ -562,11 +562,13 @@ private struct WeatherOverlayView: View {
 /// ボリュームを出す。数塊を異なる速度でパララックス的にゆっくり流す。
 private struct CloudLayer: View {
     let dark: Bool
+    /// 雨など厚い曇天で雲数を増やす（空を埋めて重い雲行きにする）。
+    var dense: Bool = false
 
     // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], 横長度, パフseed)
     // aspect>1=横に伸びた薄い雲 / <1=こんもり丸い雲。個体ごとに変えて同じ形の反復を避ける。
     private struct Cloud { let x, y, scale, speed, aspect: CGFloat; let seed: UInt64 }
-    private let clouds: [Cloud] = [
+    private let baseClouds: [Cloud] = [
         Cloud(x: 0.20, y: 0.12, scale: 1.05, speed: 0.011, aspect: 1.35, seed: 11),
         Cloud(x: 0.66, y: 0.08, scale: 0.82, speed: 0.017, aspect: 0.85, seed: 22),
         Cloud(x: 0.46, y: 0.22, scale: 1.22, speed: 0.008, aspect: 1.6,  seed: 33),
@@ -575,6 +577,17 @@ private struct CloudLayer: View {
         Cloud(x: 0.58, y: 0.40, scale: 0.92, speed: 0.010, aspect: 0.95, seed: 66),
         Cloud(x: 0.30, y: 0.48, scale: 0.64, speed: 0.018, aspect: 1.45, seed: 77),
     ]
+    // 雨用の追加雲。隙間と下方を埋めて空全体を覆う厚い雲行きに。
+    private let denseClouds: [Cloud] = [
+        Cloud(x: 0.40, y: 0.05, scale: 0.9,  speed: 0.013, aspect: 1.5,  seed: 88),
+        Cloud(x: 0.78, y: 0.17, scale: 1.0,  speed: 0.009, aspect: 1.25, seed: 99),
+        Cloud(x: 0.04, y: 0.20, scale: 0.85, speed: 0.016, aspect: 0.9,  seed: 111),
+        Cloud(x: 0.50, y: 0.33, scale: 1.1,  speed: 0.012, aspect: 1.7,  seed: 122),
+        Cloud(x: 0.84, y: 0.44, scale: 0.8,  speed: 0.019, aspect: 1.1,  seed: 133),
+        Cloud(x: 0.16, y: 0.54, scale: 0.95, speed: 0.011, aspect: 1.55, seed: 144),
+        Cloud(x: 0.68, y: 0.56, scale: 0.7,  speed: 0.015, aspect: 0.8,  seed: 155),
+    ]
+    private var clouds: [Cloud] { dense ? baseClouds + denseClouds : baseClouds }
 
     var body: some View {
         TimelineView(.animation) { tl in
