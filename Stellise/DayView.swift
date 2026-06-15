@@ -227,13 +227,14 @@ struct DayView: View {
                                             .listRowSeparator(.hidden)
                                             .listRowBackground(Color.clear)
                                             .padding(.vertical, 6)
+                                            // 完了アニメ: 右へスライドしながらフェードアウトして退場
+                                            .transition(.move(edge: .trailing).combined(with: .opacity))
                                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                                 Button {
-                                                    // 完了時の触覚フィードバック
-                                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                    generator.impactOccurred()
-                                                    
-                                                    withAnimation {
+                                                    // 完了時の触覚フィードバック（成功通知でより満足感を出す）
+                                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+                                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
                                                         task.isCompleted = true
                                                     }
                                                 } label: {
