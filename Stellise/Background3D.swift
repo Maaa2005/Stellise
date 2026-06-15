@@ -209,7 +209,7 @@ private enum SceneBuilder {
                 lightColor: UIColor(red: 1.0, green: 0.97, blue: 0.9, alpha: 1),
                 showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
                 radius: 0.34, constantLit: true, isMoon: false,
-                glowPeakAlpha: 0.95, glowScale: 17)
+                glowPeakAlpha: 0.95, glowScale: 21)
         case .dusk:
             // 夕暮れの沈む太陽（暖色の柔らかいフレア）。日中と同じ太陽だが赤橙に。
             return CelestialStyle(
@@ -219,7 +219,7 @@ private enum SceneBuilder {
                 lightColor: UIColor(red: 1.0, green: 0.85, blue: 0.7, alpha: 1),
                 showStars: false, bloom: 0.55, bloomThreshold: 0.5, bloomBlur: 22,
                 radius: 0.36, constantLit: true, isMoon: false,
-                glowPeakAlpha: 0.95, glowScale: 17)
+                glowPeakAlpha: 0.95, glowScale: 21)
         case .cloudy:
             return CelestialStyle(
                 color: UIColor(red: 0.97, green: 0.98, blue: 1.0, alpha: 1),     // 雲ごしの淡い光
@@ -399,16 +399,19 @@ private enum SceneBuilder {
                                      endCenter: center, endRadius: size * 0.5, options: [])
             }
 
-            // 3. ごく控えめな斜めの光のにじみ（レンズフレアのにじみ）。柔らかく1本だけ。
+            // 3. 斜めに細長く伸びる陽光の筋（レンズフレアのストリーク）。
+            //    細く(x圧縮)・長く(対角線方向へ)・先細り(3段テーパー)にして自然な光条にする。
+            //    rotate(-36°)＋thin-x で対角線なので、内接円より外でも板の角側に収まる(=切れない)。
             c.saveGState()
             c.translateBy(x: center.x, y: center.y)
-            c.rotate(by: CGFloat(-Double.pi / 5))   // 斜め
-            c.scaleBy(x: 0.07, y: 1)
-            let streak = [color.withAlphaComponent(peakAlpha * 0.22).cgColor,
+            c.rotate(by: CGFloat(-Double.pi / 5))   // 斜め（右下↔左上）
+            c.scaleBy(x: 0.055, y: 1)                 // 細く
+            let streak = [color.withAlphaComponent(peakAlpha * 0.26).cgColor,
+                          color.withAlphaComponent(peakAlpha * 0.07).cgColor,
                           color.withAlphaComponent(0.0).cgColor] as CFArray
-            if let sg = CGGradient(colorsSpace: space, colors: streak, locations: [0, 1]) {
+            if let sg = CGGradient(colorsSpace: space, colors: streak, locations: [0, 0.5, 1]) {
                 c.drawRadialGradient(sg, startCenter: .zero, startRadius: 0,
-                                     endCenter: .zero, endRadius: size * 0.7, options: [])
+                                     endCenter: .zero, endRadius: size * 0.58, options: []) // 長く
             }
             c.restoreGState()
         }
@@ -535,7 +538,7 @@ private enum SceneBuilder {
 
 // MARK: - 天気オーバーレイ（曇り・雨）
 
-/// 3D天体レイヤーの上に重ねる天気表現。曇り＝雲、雨＝雲＋降雨。
+/// 3D天体レイヤーの上に重ねる天気表現。曇り＝立体的な雲、雨＝雲＋降雨＋画面の水滴。
 private struct WeatherOverlayView: View {
     let condition: WeatherCondition
 
@@ -545,8 +548,9 @@ private struct WeatherOverlayView: View {
             CloudLayer(dark: false)
         case .rain:
             ZStack {
-                CloudLayer(dark: true)
-                RainLayer()
+                CloudLayer(dark: true)   // 奥: 厚い雨雲
+                RainLayer()              // 中: 降る雨
+                RainGlassLayer()         // 最前面: 画面(ガラス)に当たって垂れる水滴
             }
         default:
             Color.clear
@@ -554,34 +558,86 @@ private struct WeatherOverlayView: View {
     }
 }
 
-/// 柔らかい雲がゆっくり流れるレイヤー（上空に数枚）。
+/// ふんわり立体的な雲。複数のパフ(円)を重ねて雲塊にし、上を明るく下を陰らせて
+/// ボリュームを出す。数塊を異なる速度でパララックス的にゆっくり流す。
 private struct CloudLayer: View {
     let dark: Bool
-    @State private var drift = false
 
-    // (x割合, y割合, 幅割合, 高さ割合)
-    private let clouds: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
-        (0.28, 0.16, 0.75, 0.16), (0.72, 0.10, 0.6, 0.13), (0.5, 0.26, 0.95, 0.18),
-        (0.18, 0.32, 0.55, 0.12), (0.84, 0.30, 0.6, 0.14), (0.6, 0.40, 0.7, 0.14),
+    // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], パフseed)
+    private struct Cloud { let x, y, scale, speed: CGFloat; let seed: UInt64 }
+    private let clouds: [Cloud] = [
+        Cloud(x: 0.20, y: 0.12, scale: 1.05, speed: 0.011, seed: 11),
+        Cloud(x: 0.66, y: 0.08, scale: 0.82, speed: 0.017, seed: 22),
+        Cloud(x: 0.46, y: 0.22, scale: 1.22, speed: 0.008, seed: 33),
+        Cloud(x: 0.88, y: 0.28, scale: 0.78, speed: 0.021, seed: 44),
+        Cloud(x: 0.10, y: 0.34, scale: 0.72, speed: 0.014, seed: 55),
+        Cloud(x: 0.58, y: 0.40, scale: 0.92, speed: 0.010, seed: 66),
+        Cloud(x: 0.30, y: 0.48, scale: 0.64, speed: 0.018, seed: 77),
     ]
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                ForEach(clouds.indices, id: \.self) { i in
-                    let cl = clouds[i]
-                    Ellipse()
-                        .fill(dark ? Color(white: 0.42).opacity(0.55) : Color.white.opacity(0.6))
-                        .frame(width: geo.size.width * cl.2, height: geo.size.height * cl.3)
-                        .blur(radius: 34)
-                        .position(x: geo.size.width * cl.0 + (drift ? 16 : -16),
-                                  y: geo.size.height * cl.1)
+        TimelineView(.animation) { tl in
+            Canvas { ctx, size in
+                let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
+                for cloud in clouds {
+                    // 一方向にゆっくり流して画面外で折り返す（折返しはオフスクリーンで起こる）
+                    let frac = (cloud.x + t * cloud.speed).truncatingRemainder(dividingBy: 1.0)
+                    let cx = frac * (size.width * 1.6) - size.width * 0.3
+                    drawCloud(ctx, size: size, cx: cx, cy: cloud.y * size.height,
+                              scale: cloud.scale, seed: cloud.seed)
                 }
             }
-            .onAppear {
-                withAnimation(.easeInOut(duration: 11).repeatForever(autoreverses: true)) {
-                    drift = true
-                }
+            .blur(radius: 5)   // パフの継ぎ目をならす（かけ過ぎると煙っぽくなる）
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// 1つの雲塊を「連続した土台→下の陰り→上の明部」の3層で描く。
+    /// 土台の横長楕円でパフ間の隙間を埋め(=泡に見せない)、上を明るく下を陰らせて
+    /// ボリュームを出し、輪郭のある綿状の塊にする。
+    private func drawCloud(_ ctx: GraphicsContext, size: CGSize,
+                           cx: CGFloat, cy: CGFloat, scale: CGFloat, seed: UInt64) {
+        let baseW = size.width * 0.26 * scale
+        let topColor = dark ? Color(white: 0.70) : Color.white
+        let midColor = dark ? Color(white: 0.50) : Color(white: 0.88)
+        let botColor = dark ? Color(white: 0.30) : Color(white: 0.72)
+
+        // 0. 連続した土台（横長の楕円）。パフの下に敷いて隙間を埋め、塊を一体に見せる。
+        let bodyW = baseW * 2.2, bodyH = baseW * 1.0
+        let bodyRect = CGRect(x: cx - bodyW / 2, y: cy - bodyH / 2, width: bodyW, height: bodyH)
+        let bodyGrad = Gradient(stops: [
+            .init(color: midColor.opacity(dark ? 0.78 : 0.82), location: 0.0),
+            .init(color: midColor.opacity(dark ? 0.60 : 0.66), location: 0.55),
+            .init(color: midColor.opacity(0.0), location: 1.0),
+        ])
+        ctx.fill(Path(ellipseIn: bodyRect),
+                 with: .radialGradient(bodyGrad,
+                                       center: CGPoint(x: cx, y: cy + bodyH * 0.06),
+                                       startRadius: 0, endRadius: bodyW / 2))
+
+        // 1〜2. 下の陰り → 上の明部。横長クラスタ(縦の拡散を抑える)に小粒パフを密に置く。
+        for layer in 0..<2 {
+            var rng = SeededRandom(seed: seed &+ UInt64(layer) &* 1000)
+            let shade = layer == 0 ? botColor : topColor
+            let yoff: CGFloat = layer == 0 ? baseW * 0.24 : -baseW * 0.04
+            let peak: CGFloat = layer == 0 ? (dark ? 0.60 : 0.52) : (dark ? 0.92 : 0.92)
+            for _ in 0..<16 {
+                // 横に広く・縦は薄く散らして横長の雲塊にする
+                let px = cx + CGFloat(rng.next() - 0.5) * baseW * 1.7
+                let py = cy + yoff + CGFloat(rng.next() - 0.5) * baseW * 0.30
+                let r = baseW * (0.26 + CGFloat(rng.next()) * 0.34)   // 小粒寄りで密に重ねる
+                let rect = CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)
+                // 中心を濃く保ち外周で柔らかく消す（綿の塊＋柔らかい縁）
+                let grad = Gradient(stops: [
+                    .init(color: shade.opacity(peak), location: 0.0),
+                    .init(color: shade.opacity(peak * 0.9), location: 0.55),
+                    .init(color: shade.opacity(peak * 0.45), location: 0.8),
+                    .init(color: shade.opacity(0.0), location: 1.0),
+                ])
+                ctx.fill(Path(ellipseIn: rect),
+                         with: .radialGradient(grad,
+                                               center: CGPoint(x: px, y: py - r * 0.18),
+                                               startRadius: 0, endRadius: r))
             }
         }
     }
@@ -595,12 +651,12 @@ private struct RainLayer: View {
                 let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
                 let span = size.height + 60
                 var rng = SeededRandom(seed: 2026)
-                for _ in 0..<80 {
+                for _ in 0..<90 {
                     let x = CGFloat(rng.next()) * size.width
-                    let speed = 520 + CGFloat(rng.next()) * 420       // px/s
-                    let len = 12 + CGFloat(rng.next()) * 18
+                    let speed = 540 + CGFloat(rng.next()) * 460       // px/s
+                    let len = 12 + CGFloat(rng.next()) * 20
                     let phase = CGFloat(rng.next()) * span
-                    let alpha = 0.12 + CGFloat(rng.next()) * 0.18
+                    let alpha = 0.10 + CGFloat(rng.next()) * 0.16
                     let y = (t * speed + phase).truncatingRemainder(dividingBy: span) - 30
                     var p = Path()
                     p.move(to: CGPoint(x: x, y: y))
@@ -609,5 +665,146 @@ private struct RainLayer: View {
                 }
             }
         }
+    }
+}
+
+/// 画面(ガラス)に当たって流れ落ちる水滴。付着した細かい滴＋濡れ筋を引いて滑り落ちる滴。
+/// 「雨が画面に当たって垂れる」窓越しの表現。
+private struct RainGlassLayer: View {
+    var body: some View {
+        TimelineView(.animation) { tl in
+            Canvas { ctx, size in
+                let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
+
+                // 1. ガラスに付着した水滴（点在）。小粒中心で、ごく一部だけ中粒。
+                var rng = SeededRandom(seed: 4242)
+                for _ in 0..<52 {
+                    let x = CGFloat(rng.next()) * size.width
+                    let y = CGFloat(rng.next()) * size.height
+                    let s = CGFloat(rng.next())
+                    let r = 2.0 + s * s * 6.5   // 2乗バイアスで多くは小粒・一部が中粒
+                    drawDroplet(ctx, x: x, y: y, r: r)
+                }
+
+                // 2. 中粒の水滴（手前のアクセント）。大きすぎないよう抑える。
+                var rngH = SeededRandom(seed: 777)
+                for _ in 0..<6 {
+                    let x = CGFloat(rngH.next()) * size.width
+                    let y = CGFloat(rngH.next()) * size.height
+                    let r = 7 + CGFloat(rngH.next()) * 5   // 7..12
+                    drawDroplet(ctx, x: x, y: y, r: r)
+                }
+
+                // 3. 下へ滑り落ちる水滴。下が丸く上へ細く伸びる「しずく型」で垂れる感じを出す。
+                var rng2 = SeededRandom(seed: 99)
+                let span = size.height + 160
+                for _ in 0..<10 {
+                    let x = CGFloat(rng2.next()) * size.width
+                    let speed = 50 + CGFloat(rng2.next()) * 120          // px/s（ゆっくり垂れる）
+                    let phase = CGFloat(rng2.next()) * span
+                    let headR = 3.5 + CGFloat(rng2.next()) * 4           // 3.5..7.5（小さめ）
+                    let bodyLen = headR * (2.4 + CGFloat(rng2.next()) * 2.0)  // 伸び具合
+                    let trailLen = 30 + CGFloat(rng2.next()) * 70
+                    let y = (t * speed + phase).truncatingRemainder(dividingBy: span) - 80
+
+                    // 細い濡れ筋（しずくの上に伸びる、上ほど薄く）
+                    var trail = Path()
+                    trail.move(to: CGPoint(x: x, y: y - bodyLen - trailLen))
+                    trail.addLine(to: CGPoint(x: x, y: y - bodyLen))
+                    ctx.stroke(trail,
+                               with: .linearGradient(
+                                   Gradient(colors: [.white.opacity(0.0), .white.opacity(0.14)]),
+                                   startPoint: CGPoint(x: x, y: y - bodyLen - trailLen),
+                                   endPoint: CGPoint(x: x, y: y - bodyLen)),
+                               lineWidth: max(1.0, headR * 0.4))
+                    drawDrip(ctx, x: x, y: y, headR: headR, bodyLen: bodyLen)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// ガラス上の水滴をレンズ的に描く。暗い縁取り＋明るい内縁（屈折）＋左上スペキュラ＋
+    /// 右下の通過光と落ち影で、手前にぷっくり乗っている立体感を出す。
+    private func drawDroplet(_ ctx: GraphicsContext, x: CGFloat, y: CGFloat, r: CGFloat) {
+        let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+
+        // 落ち影（右下にわずか）→ 奥行き
+        let sr = r * 1.0
+        let sRect = CGRect(x: x - sr + r * 0.18, y: y - sr + r * 0.22, width: sr * 2, height: sr * 2)
+        ctx.fill(Path(ellipseIn: sRect),
+                 with: .radialGradient(Gradient(colors: [.black.opacity(0.18), .black.opacity(0.0)]),
+                                       center: CGPoint(x: x + r * 0.18, y: y + r * 0.22),
+                                       startRadius: r * 0.5, endRadius: sr))
+
+        // 水滴本体: レンズの屈折。中央はごく薄く→外周手前で暗いメニスカス(縁が締まる)→
+        // 縁で消える。明るいリングを置かない＝泡でなく「ガラスに付いた水滴」に見せる。
+        ctx.fill(Path(ellipseIn: rect),
+                 with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: .white.opacity(0.05), location: 0.0),
+                        .init(color: .black.opacity(0.04), location: 0.5),
+                        .init(color: .black.opacity(0.14), location: 0.86),   // 暗いメニスカス（締まる縁）
+                        .init(color: .black.opacity(0.0), location: 1.0),
+                    ]),
+                    center: CGPoint(x: x, y: y), startRadius: 0, endRadius: r))
+
+        // 右下の通過光（ドロップ下側がほのかに光る）
+        let gr = r * 0.62
+        let gRect = CGRect(x: x + r * 0.16 - gr, y: y + r * 0.20 - gr, width: gr * 2, height: gr * 2)
+        ctx.fill(Path(ellipseIn: gRect),
+                 with: .radialGradient(Gradient(colors: [.white.opacity(0.22), .white.opacity(0.0)]),
+                                       center: CGPoint(x: x + r * 0.16, y: y + r * 0.20),
+                                       startRadius: 0, endRadius: gr))
+
+        // 左上スペキュラ（小さく鋭い白点）
+        let hr = max(0.8, r * 0.26)
+        let hRect = CGRect(x: x - r * 0.36 - hr, y: y - r * 0.38 - hr, width: hr * 2, height: hr * 2)
+        ctx.fill(Path(ellipseIn: hRect),
+                 with: .radialGradient(Gradient(colors: [.white.opacity(0.95), .white.opacity(0.0)]),
+                                       center: CGPoint(x: x - r * 0.36, y: y - r * 0.38),
+                                       startRadius: 0, endRadius: hr))
+    }
+
+    /// 滑り落ちる「しずく型」の水滴。下に丸い頭(半円)、そこから上へ細く伸びて尖る。
+    /// (x, y)＝頭(バルブ)の中心。bodyLen＝頭の上端から尖端までの伸び。
+    private func drawDrip(_ ctx: GraphicsContext, x: CGFloat, y: CGFloat,
+                          headR: CGFloat, bodyLen: CGFloat) {
+        // しずくの輪郭: 下端の丸み(半円)→左右の側面を上の尖端へ二次曲線で絞る
+        let tipY = y - headR - bodyLen
+        var drop = Path()
+        drop.move(to: CGPoint(x: x - headR, y: y))
+        // 下半分の丸み（左→下→右）
+        drop.addArc(center: CGPoint(x: x, y: y), radius: headR,
+                    startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
+        // 右側面を尖端へ
+        drop.addQuadCurve(to: CGPoint(x: x, y: tipY),
+                          control: CGPoint(x: x + headR * 0.55, y: y - bodyLen * 0.5))
+        // 左側面を頭へ戻す
+        drop.addQuadCurve(to: CGPoint(x: x - headR, y: y),
+                          control: CGPoint(x: x - headR * 0.55, y: y - bodyLen * 0.5))
+        drop.closeSubpath()
+
+        // 影（右下にわずか）→ ガラスに乗った奥行き。ctxは動かさずパスをずらす。
+        let shadow = drop.applying(.init(translationX: headR * 0.16, y: headR * 0.2))
+        ctx.fill(shadow, with: .color(.black.opacity(0.12)))
+
+        // 本体: レンズ屈折。頭を中心に薄い中央→暗いメニスカス縁。明るいリングは置かない。
+        ctx.fill(drop, with: .radialGradient(
+            Gradient(stops: [
+                .init(color: .white.opacity(0.05), location: 0.0),
+                .init(color: .black.opacity(0.05), location: 0.5),
+                .init(color: .black.opacity(0.13), location: 0.9),
+                .init(color: .black.opacity(0.0), location: 1.0),
+            ]),
+            center: CGPoint(x: x, y: y), startRadius: 0, endRadius: headR * 1.2))
+
+        // 頭の左上に小さなスペキュラ（光源）
+        let hr = max(0.8, headR * 0.3)
+        let hRect = CGRect(x: x - headR * 0.34 - hr, y: y - headR * 0.36 - hr, width: hr * 2, height: hr * 2)
+        ctx.fill(Path(ellipseIn: hRect),
+                 with: .radialGradient(Gradient(colors: [.white.opacity(0.9), .white.opacity(0.0)]),
+                                       center: CGPoint(x: x - headR * 0.34, y: y - headR * 0.36),
+                                       startRadius: 0, endRadius: hr))
     }
 }

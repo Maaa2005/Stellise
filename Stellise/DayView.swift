@@ -98,7 +98,8 @@ struct DayView: View {
                                                 isWeatherIconSystem: appState.isWeatherIconSystem, // ★★★ 追加 ★★★
                                                 travelMode: appState.userData.travelMode,
                                                 routeSummary: appState.routeSummary,
-                                                isDelay: appState.isTrafficDelayDetected
+                                                isDelay: appState.isTrafficDelayDetected,
+                                                isBright: appState.isBrightBackground // 背景の明暗でガラス/文字色を切替
                                             )
                         
                         // --- 時計 (スマート・ミニマルスタイル) ---
@@ -133,8 +134,14 @@ struct DayView: View {
                                 .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 9)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                                .background(
+                                    Capsule()
+                                        .fill(.ultraThinMaterial)
+                                        .opacity(0.6)
+                                )
+                                .overlay(Capsule().strokeBorder(.primary.opacity(0.28), lineWidth: 1))
+                                // 透過ガラス。明るい空では濃色文字、暗い空では白文字（ガラスは透過のまま）
+                                .environment(\.colorScheme, appState.isBrightBackground ? .light : .dark)
                             }
                             .padding(.top, 16)
                         }
@@ -306,9 +313,11 @@ struct HeaderView: View {
     
     let travelMode: String
     let routeSummary: String
-    
+
     let isDelay: Bool
-    
+    /// 背景が明るい（朝・日中の晴天など）か。glassと文字色をiOS天気アプリ風に出し分ける。
+    let isBright: Bool
+
     // 移動手段に応じたアイコン
     var modeIcon: String {
         switch travelMode {
@@ -366,14 +375,26 @@ struct HeaderView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
+            // 透過ガラス（空が透ける）。Materialへの .opacity は効かないので
+            // シェイプにビュー修飾子の .opacity を掛けて確実に半透明化する。
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(.primary.opacity(0.28), lineWidth: 0.6)
+            )
             // 遅延時のみ細い赤い線を出す
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(isDelay ? Color.red.opacity(0.4) : Color.clear, lineWidth: 0.5)
             )
-            
+            // 明るい空では濃色文字、暗い空では白文字に切替（ガラスは透過のまま）
+            .environment(\.colorScheme, isBright ? .light : .dark)
+
             Spacer()
             
             // --- 右側: 天気情報 ---
@@ -385,7 +406,7 @@ struct HeaderView: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 32, height: 32)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.primary)
                             } else {
                                 Image(iconName)
                                     .resizable()
@@ -393,14 +414,25 @@ struct HeaderView: View {
                                     .frame(width: 32, height: 32)
                                     .opacity(0.9)
                             }
-                            
+
                             Text(feelsLikeTemp)
                                 .font(.headline)
                         }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
+            // 透過ガラス（空が透ける）。シェイプに .opacity を掛けて確実に半透明化。
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(.primary.opacity(0.28), lineWidth: 0.6)
+            )
+            // 明るい空では濃色文字、暗い空では白文字に切替（ガラスは透過のまま）
+            .environment(\.colorScheme, isBright ? .light : .dark)
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
