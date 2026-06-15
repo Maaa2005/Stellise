@@ -229,9 +229,9 @@ private enum SceneBuilder {
                 emission: UIColor(red: 0.9, green: 0.93, blue: 0.99, alpha: 1),
                 emissionIntensity: 0.0,
                 lightColor: UIColor(white: 0.95, alpha: 1),
-                showStars: false, bloom: 0.5, bloomThreshold: 0.42, bloomBlur: 42,
+                showStars: false, bloom: 0.4, bloomThreshold: 0.55, bloomBlur: 28,
                 radius: 0.4, constantLit: true, isMoon: false,
-                glowPeakAlpha: 0.5, glowScale: 15)
+                glowPeakAlpha: 0.38, glowScale: 9)
         case .rain:
             return CelestialStyle(
                 color: UIColor(red: 0.62, green: 0.68, blue: 0.85, alpha: 1),
