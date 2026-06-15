@@ -4,11 +4,15 @@ struct TaskRowView: View {
     @Binding var task: MyTask
     var onFeedbackGood: () -> Void
     var onFeedbackBad: () -> Void
-    
+    /// 一覧での並び順。登場アニメのスタッガー遅延に使う。
+    var index: Int = 0
+
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var appState: AppState
-    
+
     @State private var hasGivenFeedback: Bool = false
+    /// 登場アニメ用。onAppearでフェード＋スライドインさせる。
+    @State private var appeared: Bool = false
 
     /// 遅刻警告のアクセント。赤枠でなくヘッダーと同じ「オレンジのガラス」で揃える。
     private var delayAccent: Color { Color(red: 1.0, green: 0.55, blue: 0.15) }
@@ -106,6 +110,14 @@ struct TaskRowView: View {
             // 警告モードは枠を出さず、オレンジのガラス色味＋わずかな拡大だけで知らせる
             .scaleEffect(isWarning ? 1.05 : 1.0)
             .animation(.easeInOut(duration: 0.3), value: isWarning)
+        }
+        // 登場アニメ: 下から少し浮き上がりながらフェードイン。indexで順にずらして一覧が流れるように出る。
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 16)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.45).delay(Double(index) * 0.08)) {
+                appeared = true
+            }
         }
     }
 }

@@ -14,24 +14,24 @@ struct DayView: View {
     private var dateString: String {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "ja_JP")
-            formatter.dateFormat = "M月d日 EEEE"
+            formatter.dateFormat = "Mædæ¥ EEEE"
             return formatter.string(from: Date())
         }
     
     var body: some View {
             ZStack {
-                // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
+                // èæ¯ã¯ StelliseApp ã®å±æ Background3DViewï¼æâå¤ã§é£ç¶ï¼ãããã§ã¯æããªãã
 
-                // --- コンテンツ ---
+                // --- ã³ã³ãã³ã ---
                 if appState.isLoading {
-                    // ローディング画面
+                    // ã­ã¼ãã£ã³ã°ç»é¢
                     ZStack {
                         Color.black.opacity(0.4).edgesIgnoringSafeArea(.all)
                         VStack(spacing: 24) {
                             ProgressView()
                                 .scaleEffect(1.2)
                                 .tint(.white)
-                            Text("スケジュールを作成中...")
+                            Text("ã¹ã±ã¸ã¥ã¼ã«ãä½æä¸­...")
                                 .font(.callout)
                                 .foregroundStyle(.white.opacity(0.9))
                         }
@@ -42,12 +42,12 @@ struct DayView: View {
                     .zIndex(10)
                     
                 } else if appState.connectionError {
-                    // 通信エラー画面
+                    // éä¿¡ã¨ã©ã¼ç»é¢
                     VStack(spacing: 20) {
                         Image(systemName: "wifi.slash")
                             .font(.system(size: 40, weight: .light))
                             .foregroundStyle(.white.opacity(0.8))
-                        Text("通信エラーが発生しました")
+                        Text("éä¿¡ã¨ã©ã¼ãçºçãã¾ãã")
                             .font(.headline)
                             .foregroundStyle(.white)
                         
@@ -56,7 +56,7 @@ struct DayView: View {
                                 await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium)
                             }
                         }) {
-                            Text("再試行")
+                            Text("åè©¦è¡")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .padding(.horizontal, 24)
@@ -71,9 +71,9 @@ struct DayView: View {
                     .zIndex(9)
                     
                 } else {
-                    // 通常画面
+                    // éå¸¸ç»é¢
                     VStack(spacing: 0) {
-                        // 緊急バナー
+                        // ç·æ¥ããã¼
                         if appState.isEmergencyScheduleShift {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.circle")
@@ -88,44 +88,44 @@ struct DayView: View {
                             .background(Color.red.opacity(0.85))
                         }
                         
-                        // ヘッダー
-                        // ヘッダー
+                        // ãããã¼
+                        // ãããã¼
                                             HeaderView(
-                                                departureTime: appState.dailyTasks.first(where: { $0.title == "出発" })?.time ?? "--:--",
+                                                departureTime: appState.dailyTasks.first(where: { $0.title == "åºçº" })?.time ?? "--:--",
                                                 travelTime: appState.estimatedTravelTime,
                                                 feelsLikeTemp: appState.currentTempFeelsLike,
                                                 iconName: appState.weatherIconName,
-                                                isWeatherIconSystem: appState.isWeatherIconSystem, // ★★★ 追加 ★★★
+                                                isWeatherIconSystem: appState.isWeatherIconSystem, // âââ è¿½å  âââ
                                                 travelMode: appState.userData.travelMode,
                                                 routeSummary: appState.routeSummary,
                                                 isDelay: appState.isTrafficDelayDetected,
-                                                isBright: appState.isBrightBackground // 背景の明暗でガラス/文字色を切替
+                                                isBright: appState.isBrightBackground // èæ¯ã®ææã§ã¬ã©ã¹/æå­è²ãåæ¿
                                             )
                         
-                        // --- 時計 (スマート・ミニマルスタイル) ---
+                        // --- æè¨ (ã¹ãã¼ãã»ãããã«ã¹ã¿ã¤ã«) ---
                         VStack(spacing: 0) {
-                            // 時間
+                            // æé
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                                 Text(context.date, style: .time)
-                                    // P0: デザイントークンの大時計フォント（rounded + monospacedDigit）
+                                    // P0: ãã¶ã¤ã³ãã¼ã¯ã³ã®å¤§æè¨ãã©ã³ãï¼rounded + monospacedDigitï¼
                                     .font(Theme.Typography.clock(96))
-                                    // 背景が明るい時は濃紺、暗い時は白
+                                    // èæ¯ãæããæã¯æ¿ç´ºãæãæã¯ç½
                                     .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
-                                    // 雲や空の濃淡で数字が埋もれないよう、背景の逆方向にソフトな影/ハローを敷く
+                                    // é²ãç©ºã®æ¿æ·¡ã§æ°å­ãåãããªããããèæ¯ã®éæ¹åã«ã½ãããªå½±/ãã­ã¼ãæ·ã
                                     .shadow(color: appState.isBrightBackground ? .white.opacity(0.55) : .black.opacity(0.4),
                                             radius: appState.isBrightBackground ? 12 : 7, y: 1)
                             }
 
-                            // 日付
+                            // æ¥ä»
                             Text(dateString)
                                 .font(.system(.title3, design: .rounded, weight: .regular))
                                 .tracking(3)
-                                // 背景が明るい時は濃紺、暗い時は白
+                                // èæ¯ãæããæã¯æ¿ç´ºãæãæã¯ç½
                                 .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.8) : Theme.Palette.textOnDarkMuted)
                                 .shadow(color: appState.isBrightBackground ? .white.opacity(0.5) : .black.opacity(0.35),
                                         radius: appState.isBrightBackground ? 8 : 5, y: 1)
 
-                            // アラームチップ（朝でも明日のアラームを変更できる導線）
+                            // ã¢ã©ã¼ã ãããï¼æã§ãææ¥ã®ã¢ã©ã¼ã ãå¤æ´ã§ããå°ç·ï¼
                             Button {
                                 let g = UIImpactFeedbackGenerator(style: .light); g.impactOccurred()
                                 isShowingAlarmPicker = true
@@ -145,25 +145,25 @@ struct DayView: View {
                                         .opacity(0.6)
                                 )
                                 .overlay(Capsule().strokeBorder(.primary.opacity(0.28), lineWidth: 1))
-                                // 透過ガラス。明るい空では濃色文字、暗い空では白文字（ガラスは透過のまま）
+                                // ééã¬ã©ã¹ãæããç©ºã§ã¯æ¿è²æå­ãæãç©ºã§ã¯ç½æå­ï¼ã¬ã©ã¹ã¯ééã®ã¾ã¾ï¼
                                 .environment(\.colorScheme, appState.isBrightBackground ? .light : .dark)
                             }
                             .padding(.top, 16)
                         }
                         .padding(.vertical, 32)
                         
-                        // タスクリスト
+                        // ã¿ã¹ã¯ãªã¹ã
                         if appState.dailyTasks.isEmpty {
                             Spacer()
-                            // タスク未生成: 自動生成せず、手動で生成させる
+                            // ã¿ã¹ã¯æªçæ: èªåçæãããæåã§çæããã
                             VStack(spacing: 18) {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 44, weight: .ultraLight))
                                     .foregroundStyle(.white)
-                                Text("今日のタスクはまだありません")
+                                Text("ä»æ¥ã®ã¿ã¹ã¯ã¯ã¾ã ããã¾ãã")
                                     .font(.headline)
                                     .foregroundStyle(.white)
-                                Text("天気と予定から、出発に間に合う\n朝のルーティンを組み立てます。")
+                                Text("å¤©æ°ã¨äºå®ãããåºçºã«éã«åã\næã®ã«ã¼ãã£ã³ãçµã¿ç«ã¦ã¾ãã")
                                     .font(.subheadline)
                                     .multilineTextAlignment(.center)
                                     .foregroundStyle(.white.opacity(0.7))
@@ -172,7 +172,7 @@ struct DayView: View {
                                     let g = UIImpactFeedbackGenerator(style: .medium); g.impactOccurred()
                                     Task { await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium) }
                                 } label: {
-                                    Text("タスクを生成")
+                                    Text("ã¿ã¹ã¯ãçæ")
                                         .font(.headline)
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 32)
@@ -188,18 +188,18 @@ struct DayView: View {
 
                         } else if allTasksCompleted {
                             Spacer()
-                            // 完了画面
+                            // å®äºç»é¢
                             VStack(spacing: 16) {
                                 Image(systemName: "checkmark.circle")
                                     .font(.system(size: 60, weight: .ultraLight))
                                     .foregroundStyle(.white)
                                 
-                                Text("準備完了")
+                                Text("æºåå®äº")
                                     .font(.title3)
                                     .fontWeight(.medium)
                                     .foregroundStyle(.white)
                                 
-                                Text("すべてのタスクが完了しました。\n今日も良い一日を。")
+                                Text("ãã¹ã¦ã®ã¿ã¹ã¯ãå®äºãã¾ããã\nä»æ¥ãè¯ãä¸æ¥ãã")
                                     .font(.subheadline)
                                     .multilineTextAlignment(.center)
                                     .foregroundStyle(.white.opacity(0.6))
@@ -214,20 +214,22 @@ struct DayView: View {
                             List {
                                 ForEach($appState.dailyTasks) { $task in
                                     if !task.isCompleted {
-                                        // ★★★ 修正: TaskRowViewの呼び出しに source を追加 (UI判定用) ★★★
-                                        TaskRowView(task: $task,  onFeedbackGood: { // ★ appStateを追加
+                                        // ç»å ´ã¢ãã¡ã®ã¹ã¿ãã¬ã¼ç¨ã«ä¸è¦§ä¸­ã®ä½ç½®ãæ¸¡ã
+                                        let rowIndex = appState.dailyTasks.firstIndex(where: { $0.id == task.id }) ?? 0
+                                        // âââ ä¿®æ­£: TaskRowViewã®å¼ã³åºãã« source ãè¿½å  (UIå¤å®ç¨) âââ
+                                        TaskRowView(task: $task,  onFeedbackGood: { // â appStateãè¿½å 
                                             appState.recordFeedback(taskTitle: task.title, isGood: true)
                                         },
                                                     onFeedbackBad: {
                                             appState.recordFeedback(taskTitle: task.title, isGood: false)
-                                        })
+                                        }, index: rowIndex)
                                             .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
                                             .listRowSeparator(.hidden)
                                             .listRowBackground(Color.clear)
                                             .padding(.vertical, 6)
                                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                                 Button {
-                                                    // 完了時の触覚フィードバック
+                                                    // å®äºæã®è§¦è¦ãã£ã¼ãããã¯
                                                     let generator = UIImpactFeedbackGenerator(style: .medium)
                                                     generator.impactOccurred()
                                                     
@@ -235,9 +237,9 @@ struct DayView: View {
                                                         task.isCompleted = true
                                                     }
                                                 } label: {
-                                                    Label("完了", systemImage: "checkmark")
+                                                    Label("å®äº", systemImage: "checkmark")
                                                 }
-                                                .tint(Color.appAccent.opacity(0.7)) // 完了スワイプはアクセントのパープルで統一
+                                                .tint(Color.appAccent.opacity(0.7)) // å®äºã¹ã¯ã¤ãã¯ã¢ã¯ã»ã³ãã®ãã¼ãã«ã§çµ±ä¸
                                             }
                                     }
                                 }
@@ -246,7 +248,7 @@ struct DayView: View {
                                     appState.dailyTasks.remove(atOffsets: indexSet)
                                 }
                                 Section {
-                                                                    Text("AIは間違えることがあります。重要な情報は確認してください。")
+                                                                    Text("AIã¯ééãããã¨ãããã¾ããéè¦ãªæå ±ã¯ç¢ºèªãã¦ãã ããã")
                                                                         .font(.caption2)
                                                                         .foregroundStyle(.secondary)
                                                                         .frame(maxWidth: .infinity, alignment: .center)
@@ -263,7 +265,7 @@ struct DayView: View {
             }
             
             .onAppear {
-            // タスクは自動生成しない（アラーム発火 or 手動「生成」ボタンで作る）
+            // ã¿ã¹ã¯ã¯èªåçæããªãï¼ã¢ã©ã¼ã çºç« or æåãçæããã¿ã³ã§ä½ãï¼
             if appState.lastSleepScore > 0 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { isShowingReportModal = true }
                 appState.startMorningTrafficMonitoring(isPremium: subscriptionManager.isPremium)
@@ -280,7 +282,7 @@ struct DayView: View {
         }
         .sheet(isPresented: $isShowingAlarmPicker) {
             VStack(spacing: 20) {
-                Text("アラーム設定").font(.headline).padding(.top)
+                Text("ã¢ã©ã¼ã è¨­å®").font(.headline).padding(.top)
                 DatePicker("", selection: Binding(
                     get: {
                         let comp = DateComponents(hour: appState.userData.alarmHour, minute: appState.userData.alarmMinute)
@@ -293,7 +295,7 @@ struct DayView: View {
                     }
                 ), displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel).labelsHidden()
-                Button("完了") {
+                Button("å®äº") {
                     isShowingAlarmPicker = false
                     appState.save()
                     appState.requestNotificationPermission()
@@ -306,7 +308,7 @@ struct DayView: View {
 }
 
 // ==========================================
-// MARK: - ヘッダー部品 (HeaderView) ミニマルデザイン版
+// MARK: - ãããã¼é¨å (HeaderView) ãããã«ãã¶ã¤ã³ç
 // ==========================================
 
 struct HeaderView: View {
@@ -320,10 +322,10 @@ struct HeaderView: View {
     let routeSummary: String
 
     let isDelay: Bool
-    /// 背景が明るい（朝・日中の晴天など）か。glassと文字色をiOS天気アプリ風に出し分ける。
+    /// èæ¯ãæããï¼æã»æ¥ä¸­ã®æ´å¤©ãªã©ï¼ããglassã¨æå­è²ãiOSå¤©æ°ã¢ããªé¢¨ã«åºãåããã
     let isBright: Bool
 
-    // 移動手段に応じたアイコン
+    // ç§»åææ®µã«å¿ããã¢ã¤ã³ã³
     var modeIcon: String {
         switch travelMode {
         case "driving": return "car"
@@ -335,17 +337,17 @@ struct HeaderView: View {
     
     var modeLabel: String {
         switch travelMode {
-        case "driving": return "車"
-        case "transit": return "電車"
-        case "walking": return "徒歩"
-        default:        return "移動"
+        case "driving": return "è»"
+        case "transit": return "é»è»"
+        case "walking": return "å¾æ­©"
+        default:        return "ç§»å"
         }
     }
     
-    /// 遅延時のアクセント。赤枠でなく「オレンジのガラス」で上品に警告する。
+    /// éå»¶æã®ã¢ã¯ã»ã³ããèµ¤æ ã§ãªãããªã¬ã³ã¸ã®ã¬ã©ã¹ãã§ä¸åã«è­¦åããã
     private var delayAccent: Color { Color(red: 1.0, green: 0.55, blue: 0.15) }
 
-    // ★ カラフルな色分けを廃止し、統一感のあるモノトーンへ (遅延時のみオレンジ)
+    // â ã«ã©ãã«ãªè²åããå»æ­¢ããçµ±ä¸æã®ããã¢ããã¼ã³ã¸ (éå»¶æã®ã¿ãªã¬ã³ã¸)
     var statusColor: Color {
         if isDelay { return delayAccent }
         return .primary
@@ -353,9 +355,9 @@ struct HeaderView: View {
     
     var body: some View {
         HStack {
-            // --- 左側: 出発・移動情報 ---
+            // --- å·¦å´: åºçºã»ç§»åæå ± ---
             HStack(spacing: 12) {
-                // アイコン
+                // ã¢ã¤ã³ã³
                 Image(systemName: modeIcon)
                     .font(.title3)
                     .foregroundStyle(isDelay ? delayAccent : .primary.opacity(0.8))
@@ -364,9 +366,9 @@ struct HeaderView: View {
                     .clipShape(Circle())
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    // 出発時刻
+                    // åºçºæå»
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("出発")
+                        Text("åºçº")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(departureTime)
@@ -375,17 +377,17 @@ struct HeaderView: View {
                             .foregroundStyle(isDelay ? delayAccent : .primary)
                     }
 
-                    // 手段・状況・所要時間
-                    Text("\(modeLabel) (\(routeSummary)) • \(travelTime)")
+                    // ææ®µã»ç¶æ³ã»æè¦æé
+                    Text("\(modeLabel) (\(routeSummary)) â¢ \(travelTime)")
                         .font(.caption2)
                         .foregroundStyle(isDelay ? delayAccent.opacity(0.85) : .secondary)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            // 透過ガラス（空が透ける）。Materialへの .opacity は効かないので
-            // シェイプにビュー修飾子の .opacity を掛けて確実に半透明化する。
-            // 遅延時は赤枠でなく、ガラスにオレンジの色味を溶かした「オレンジガラス」にする。
+            // ééã¬ã©ã¹ï¼ç©ºãéããï¼ãMaterialã¸ã® .opacity ã¯å¹ããªãã®ã§
+            // ã·ã§ã¤ãã«ãã¥ã¼ä¿®é£¾å­ã® .opacity ãæãã¦ç¢ºå®ã«åéæåããã
+            // éå»¶æã¯èµ¤æ ã§ãªããã¬ã©ã¹ã«ãªã¬ã³ã¸ã®è²å³ãæº¶ãããããªã¬ã³ã¸ã¬ã©ã¹ãã«ããã
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(.ultraThinMaterial)
@@ -396,21 +398,21 @@ struct HeaderView: View {
                     )
             )
             .clipShape(RoundedRectangle(cornerRadius: 20))
-            // 縁: 通常は淡い白、遅延時は柔らかいオレンジの縁
+            // ç¸: éå¸¸ã¯æ·¡ãç½ãéå»¶æã¯æããããªã¬ã³ã¸ã®ç¸
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(isDelay ? delayAccent.opacity(0.55) : .primary.opacity(0.28),
                                   lineWidth: isDelay ? 1.0 : 0.6)
             )
-            // 明るい空では濃色文字、暗い空では白文字に切替（ガラスは透過のまま）
+            // æããç©ºã§ã¯æ¿è²æå­ãæãç©ºã§ã¯ç½æå­ã«åæ¿ï¼ã¬ã©ã¹ã¯ééã®ã¾ã¾ï¼
             .environment(\.colorScheme, isBright ? .light : .dark)
 
             Spacer()
             
-            // --- 右側: 天気情報 ---
-            // --- 右側: 天気情報 ---
+            // --- å³å´: å¤©æ°æå ± ---
+            // --- å³å´: å¤©æ°æå ± ---
                         HStack(spacing: 8) {
-                            // ★★★ 修正: フラグによって Image と Image(systemName:) を出し分ける ★★★
+                            // âââ ä¿®æ­£: ãã©ã°ã«ãã£ã¦ Image ã¨ Image(systemName:) ãåºãåãã âââ
                             if isWeatherIconSystem {
                                 Image(systemName: iconName)
                                     .resizable()
@@ -430,7 +432,7 @@ struct HeaderView: View {
                         }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            // 透過ガラス（空が透ける）。シェイプに .opacity を掛けて確実に半透明化。
+            // ééã¬ã©ã¹ï¼ç©ºãéããï¼ãã·ã§ã¤ãã« .opacity ãæãã¦ç¢ºå®ã«åéæåã
             .background(
                 RoundedRectangle(cornerRadius: 20)
                     .fill(.ultraThinMaterial)
@@ -441,7 +443,7 @@ struct HeaderView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(.primary.opacity(0.28), lineWidth: 0.6)
             )
-            // 明るい空では濃色文字、暗い空では白文字に切替（ガラスは透過のまま）
+            // æããç©ºã§ã¯æ¿è²æå­ãæãç©ºã§ã¯ç½æå­ã«åæ¿ï¼ã¬ã©ã¹ã¯ééã®ã¾ã¾ï¼
             .environment(\.colorScheme, isBright ? .light : .dark)
         }
         .padding(.horizontal, 20)
