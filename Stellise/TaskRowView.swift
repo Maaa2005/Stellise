@@ -31,6 +31,19 @@ struct TaskRowView: View {
             let isWarning = hasStarted && remainingSeconds < 60
             
             HStack(spacing: 12) {
+                // タップで完了（横スワイプは親のページングと競合するため、確実なタップ導線を用意）
+                Button {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        task.isCompleted = true
+                    }
+                } label: {
+                    Image(systemName: "circle")
+                        .font(.title2)
+                        .foregroundStyle(.primary.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(task.title)
                         .font(.headline)
