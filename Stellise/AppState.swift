@@ -7,7 +7,8 @@ import AudioToolbox
 import CoreLocation
 import FirebaseAuth
 import MapKit
-import UserNotifications // ★これをファイルの一番上の方に追加
+import UserNotifications
+import AlarmKit
 
 
 struct TaskFeedback: Codable, Hashable {
@@ -54,6 +55,9 @@ struct MasterTaskForAI: Encodable {
 
 // 天気レスポンス定義
 
+
+// AlarmKit でのアラームに付加するカスタムメタデータ（不要だが型引数として必要）
+struct StelliSeAlarmMetadata: AlarmMetadata {}
 
 // ==========================================
 // MARK: - AppState (アプリの脳・統合版)
@@ -134,6 +138,9 @@ class AppState: ObservableObject {
     let soundAnalyzer = SoundAnalyzer()
     
     // 内部変数
+    // アプリ固有の固定 UUID（再起動後もキャンセルできるよう定数化）
+    let morningAlarmID     = UUID(uuidString: "A3B7C2D1-E4F5-6789-ABCD-EF0123456789")!
+    let snoozeGuardAlarmID = UUID(uuidString: "B4C8D3E2-F5A6-789B-CDEF-012345678901")!
     private var alarmEffectsTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
     private var morningTrafficTimer: Timer?
@@ -188,7 +195,7 @@ class AppState: ObservableObject {
         // MARK: - スマートスケジュール更新
         // ==========================================
         
-        func refreshSmartSchedule(isPremium: Bool) async {
+        func refreshSmartSchedule(isPremium: Bool, forceRegenerate: Bool = false) async {
             
             await MainActor.run {
                 self.isLoading = true
@@ -264,7 +271,9 @@ class AppState: ObservableObject {
             
             // 4. AI生成判定
             let shouldGenerateAI: Bool
-            if let lastDate = lastAIGenerationDate, Calendar.current.isDateInToday(lastDate), !dailyTasks.isEmpty {
+            if forceRegenerate {
+                shouldGenerateAI = true
+            } else if let lastDate = lastAIGenerationDate, Calendar.current.isDateInToday(lastDate), !dailyTasks.isEmpty {
                 shouldGenerateAI = false
             } else {
                 shouldGenerateAI = true
@@ -615,10 +624,11 @@ class AppState: ObservableObject {
         audioPlayer?.stop()
         selectedTab = 0
         sensorManager.stopDetection()
-                Task { await soundAnalyzer.stopAnalyzing() }
+        Task { await soundAnalyzer.stopAnalyzing() }
         missionAnswerText = ""
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["MorningAlarm"])
-        Task { await refreshSmartSchedule(isPremium: false) }
+        cancelMorningAlarm()
+        lastAIGenerationDate = nil
+        Task { await refreshSmartSchedule(isPremium: false, forceRegenerate: true) }
         startSnoozeGuard()
     }
     
@@ -638,29 +648,33 @@ class AppState: ObservableObject {
             let secondsToWait = max(deadline.timeIntervalSince(Date()), 180.0)
             
             print("🛡️ スヌーズガード作動: \(firstTask.title) が \(Int(secondsToWait))秒後 までに終わらなければアラーム再開")
-            
-            // 1. 【画面ロック(2度寝)対策】 OSにスヌーズアラームを予約する
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                if granted {
-                    let content = UNMutableNotificationContent()
-                    content.title = "⚠️ 2度寝していませんか！？"
-                    content.body = "最初のタスク「\(firstTask.title)」が終わっていません！今すぐ起きてください！"
-                    
-                    // ★ 普通の「ピコン」という通知音ではなく、あの大音量アラームを指定！
-                    content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.mp3"))
-                    
-                    // ★ 即時通知にしておやすみモードを貫通させる
-                    if #available(iOS 15.0, *) {
-                        content.interruptionLevel = .timeSensitive
-                    }
-                    
-                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: secondsToWait, repeats: false)
-                    let request = UNNotificationRequest(identifier: "SnoozeGuardAlert", content: content, trigger: trigger)
-                    UNUserNotificationCenter.current().add(request)
+
+            // 1. 【アプリ終了・画面ロック時の二度寝対策】AlarmKit でアラームを予約
+            //    ローカル通知と異なり、おやすみモード貫通・時計アプリ同等の音量で鳴動する
+            let snoozeFireDate = Date().addingTimeInterval(secondsToWait)
+            Task {
+                do {
+                    // 前の予約が残っていればキャンセル
+                    try? AlarmManager.shared.cancel(id: snoozeGuardAlarmID)
+
+                    let alert = AlarmPresentation.Alert(title: "⚠️ 二度寝していませんか！？")
+                    let presentation = AlarmPresentation(alert: alert)
+                    let attributes = AlarmAttributes<StelliSeAlarmMetadata>(
+                        presentation: presentation,
+                        tintColor: .orange
+                    )
+                    let configuration = AlarmManager.AlarmConfiguration<StelliSeAlarmMetadata>.alarm(
+                        schedule: .fixed(snoozeFireDate),
+                        attributes: attributes
+                    )
+                    _ = try await AlarmManager.shared.schedule(id: snoozeGuardAlarmID, configuration: configuration)
+                    print("🛡️ AlarmKit: スヌーズガードアラームをセット（\(Int(secondsToWait))秒後）")
+                } catch {
+                    print("❌ AlarmKit: スヌーズガードのセット失敗: \(error.localizedDescription)")
                 }
             }
-            
-            // 2. 【アプリを開いたまま2度寝した時用】 内部タイマー
+
+            // 2. 【アプリを開いたまま二度寝した時用】内部タイマー
             snoozeGuardTask?.cancel()
             snoozeGuardTask = Task { @MainActor in
                 do {
@@ -686,9 +700,8 @@ class AppState: ObservableObject {
                 print("🛑 最初のタスクが完了したため、スヌーズガードを解除します")
                 snoozeGuardTask?.cancel()
                 snoozeGuardTask = nil
-                
-                // ★★★ 追加: タスクを完了したら、OSに予約した2度寝防止アラームも確実に消去する ★★★
-                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["SnoozeGuardAlert"])
+                // AlarmKit のスヌーズガードアラームもキャンセル
+                try? AlarmManager.shared.cancel(id: snoozeGuardAlarmID)
             }
         }
    
@@ -917,9 +930,10 @@ class AppState: ObservableObject {
     }
     
     func startAlarmEffects() {
-            // ★★★ 修正: アラーム鳴動時にも設定を強制適用 (他のアプリに設定を変えられた場合の対策)
+            // 睡眠音を先に止めてからアラーム用セッションを設定
+            sleepSoundManager.prepareForAlarm()
             configureAudioSession()
-            
+
             alarmEffectsTask?.cancel()
             playAlarmSound()
             
@@ -978,9 +992,9 @@ class AppState: ObservableObject {
             
             guard let parsedDate = Calendar.current.date(from: comp) else { return nil }
             
-            // ★★★ 修正: もし計算した時間が「現在時刻より12時間以上前（過去）」なら、明日の予定とみなす ★★★
-            if parsedDate.timeIntervalSince(now) < -43200 { // 12時間 = 43200秒
-                return parsedDate.addingTimeInterval(86400) // 1日（86400秒）足す
+            // 8時間以上前なら翌日扱い（例: 15:00に "06:00" → 翌朝 06:00）
+            if parsedDate.timeIntervalSince(now) < -28800 { // 8時間 = 28800秒
+                return parsedDate.addingTimeInterval(86400)
             }
             
             return parsedDate
@@ -1005,60 +1019,67 @@ class AppState: ObservableObject {
     
     
     // ==========================================
-        // MARK: - ローカル通知 (バックグラウンドアラーム)
-        // ==========================================
-        
-        /// 通知の許可をユーザーに求める
-        func requestNotificationPermission() {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                if granted {
-                    print("✅ 通知の許可が得られました")
-                } else if let error = error {
-                    print("❌ 通知の許可エラー: \(error.localizedDescription)")
-                }
+    // MARK: - AlarmKit (バックグラウンドアラーム)
+    // ==========================================
+
+    /// AlarmKit の使用許可をユーザーに求める
+    func requestNotificationPermission() {
+        Task {
+            do {
+                try await AlarmManager.shared.requestAuthorization()
+                print("✅ AlarmKit: 許可が得られました")
+            } catch {
+                print("❌ AlarmKit: 許可エラー: \(error.localizedDescription)")
             }
         }
-        
-        /// OSレベルで明日の朝のアラームを予約する
-        func scheduleMorningAlarm() {
-            // まず古いアラーム予約をすべてキャンセルする
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["MorningAlarm"])
-            
-            // アラームがオフならここで終了
-            guard userData.isAlarmActive else { return }
-            
-            let content = UNMutableNotificationContent()
-            content.title = "⏰ 起きる時間です！"
-            content.body = "Stelliseを開いて、朝のミッションをクリアしましょう。"
-            
-            // ★重要: Xcodeに追加したアラーム音のファイル名(拡張子含む)に必ず合わせること
-            // 30秒以下の音声ファイルである必要があります。
-            content.sound = UNNotificationSound(named: UNNotificationSoundName("alarm.mp3"))
-            if #available(iOS 15.0, *) {
-                        content.interruptionLevel = .timeSensitive
+    }
+
+    /// AlarmKit で朝のアラームをスケジュールする
+    func scheduleMorningAlarm() {
+        cancelMorningAlarm()
+        guard userData.isAlarmActive else { return }
+
+        let calendar = Calendar.current
+        var comp = calendar.dateComponents([.year, .month, .day], from: Date())
+        comp.hour   = userData.alarmHour
+        comp.minute = userData.alarmMinute
+        guard let alarmDate = calendar.date(from: comp) else { return }
+        let targetDate = alarmDate < Date() ? alarmDate.addingTimeInterval(86400) : alarmDate
+
+        Task {
+            do {
+                // 未許可の場合はここで権限を要求してから予約
+                if AlarmManager.shared.authorizationState != .authorized {
+                    let state = try await AlarmManager.shared.requestAuthorization()
+                    guard state == .authorized else {
+                        print("⚠️ AlarmKit: 権限が得られなかったためアラームを予約しません")
+                        return
                     }
-            // 目標時刻の計算
-            let calendar = Calendar.current
-            var comp = calendar.dateComponents([.year, .month, .day], from: Date())
-            comp.hour = userData.alarmHour
-            comp.minute = userData.alarmMinute
-            
-            guard let alarmDate = calendar.date(from: comp) else { return }
-            
-            // すでに今日のその時間を過ぎているなら明日にする
-            let targetDate = alarmDate < Date() ? alarmDate.addingTimeInterval(86400) : alarmDate
-            
-            let triggerComp = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: targetDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComp, repeats: false)
-            
-            let request = UNNotificationRequest(identifier: "MorningAlarm", content: content, trigger: trigger)
-            
-            UNUserNotificationCenter.current().add(request) { error in
-                if let error = error {
-                    print("❌ バックグラウンドアラームのセット失敗: \(error)")
-                } else {
-                    print("✅ バックグラウンドアラームを \(targetDate) にセット完了！")
                 }
+                let alert = AlarmPresentation.Alert(title: "⏰ 起きる時間です！")
+                let presentation = AlarmPresentation(alert: alert)
+                let attributes = AlarmAttributes<StelliSeAlarmMetadata>(
+                    presentation: presentation,
+                    tintColor: .purple
+                )
+                let configuration = AlarmManager.AlarmConfiguration<StelliSeAlarmMetadata>.alarm(
+                    schedule: .fixed(targetDate),
+                    attributes: attributes
+                )
+                _ = try await AlarmManager.shared.schedule(id: morningAlarmID, configuration: configuration)
+                print("✅ AlarmKit: アラームを \(targetDate) にセット完了")
+            } catch {
+                print("❌ AlarmKit: アラームのセット失敗: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// スケジュール済みの朝アラームをキャンセルする（同期）
+    func cancelMorningAlarm() {
+        do {
+            try AlarmManager.shared.cancel(id: morningAlarmID)
+        } catch {
+            print("⚠️ AlarmKit: アラームキャンセル失敗: \(error.localizedDescription)")
+        }
+    }
 }

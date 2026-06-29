@@ -13,9 +13,14 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>設定した時刻に確実にアラームを鳴らすために使用します。</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>alarm</string>
 	</array>
 	<key>Localization native development region</key>
 	<string>ja</string>

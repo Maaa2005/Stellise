@@ -96,17 +96,20 @@ struct TaskSetupView: View {
                 }
                 .padding(.horizontal)
 
-                // --- Kivyの task_list_layout (MDList) に相当 ---
-                // $appState.userData.masterTasks を直接表示・変更するリスト
+                // --- ルーティン一覧（並べ替え・削除対応）---
                 List {
-                    // ForEachで $appState.userData.masterTasks をループ
                     ForEach($appState.userData.masterTasks, id: \.self) { $taskName in
-                        // $taskName を渡すことで、リスト上で直接編集も可能になる
-                        Text(taskName)
+                        HStack(spacing: 10) {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(.secondary)
+                            Text(taskName)
+                        }
                     }
-                    .onDelete(perform: deleteTask) // スワイプで削除する機能
+                    .onDelete(perform: deleteTask)
+                    .onMove(perform: moveTask)
                 }
-                .listStyle(.inset) // リストのスタイル
+                .listStyle(.inset)
+                .environment(\.editMode, .constant(.active))
                 
                 // "次へ" ボタン (CalendarLinkScreenへ)
                 // ★★★ 修正: "次へ" ボタン (AI同意アラート付き) ★★★
@@ -172,9 +175,12 @@ struct TaskSetupView: View {
         }
     }
     
-    // Kivyの delete_task に相当
     private func deleteTask(at offsets: IndexSet) {
         appState.userData.masterTasks.remove(atOffsets: offsets)
+    }
+
+    private func moveTask(from source: IndexSet, to destination: Int) {
+        appState.userData.masterTasks.move(fromOffsets: source, toOffset: destination)
     }
 }
 

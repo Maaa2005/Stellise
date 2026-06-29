@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseCore
+import AlarmKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
@@ -113,6 +114,7 @@ struct StelliseApp: App {
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
                     checkTimeAndSwitchTab()
+                    handlePendingAlarmKitAlarm()
                     Task {
                         await appState.fetchWeatherForCurrentLocation()
                         await subscriptionManager.updateStatus()
@@ -131,6 +133,25 @@ struct StelliseApp: App {
         case 7..<17:  return weather == .night ? .clear : weather   // 日中は天気連動
         case 17..<19: return .dusk                                  // 夕暮れ
         default:      return .night
+        }
+    }
+
+    // AlarmKit がアプリをアクティブ化したとき、alerting 状態のアラームがあれば発火させる
+    @MainActor
+    private func handlePendingAlarmKitAlarm() {
+        guard !appState.isAlarmRinging else { return }
+        do {
+            let alarms = try AlarmManager.shared.alarms
+            // 朝アラーム または スヌーズガードアラームが鳴動中なら画面を立ち上げる
+            let triggerIDs: Set<UUID> = [appState.morningAlarmID, appState.snoozeGuardAlarmID]
+            if alarms.first(where: { triggerIDs.contains($0.id) && $0.state == .alerting }) != nil {
+                appState.generateNewMission()
+                appState.isAlarmFinished = false
+                appState.isAlarmRinging = true
+                appState.startAlarmEffects()
+            }
+        } catch {
+            print("⚠️ AlarmKit: アラーム状態の確認に失敗: \(error.localizedDescription)")
         }
     }
 

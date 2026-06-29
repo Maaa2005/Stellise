@@ -2,13 +2,19 @@ import SwiftUI
 import FirebaseAuth
 import CoreLocation
 import StoreKit
+import AlarmKit
+import AVFoundation
+import EventKit
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var subscriptionManager: SubscriptionManager
-    
+
     @State private var isShowingRedeemSheet = false
     @State private var showDeleteAlert = false
+    @State private var alarmAuthState: AlarmManager.AuthorizationState = .notDetermined
+    @State private var micPermission: AVAudioSession.RecordPermission = .undetermined
+    @State private var calendarStatus: EKAuthorizationStatus = .notDetermined
     
     var body: some View {
         NavigationStack {
@@ -29,7 +35,7 @@ struct SettingsView: View {
                 Section(header: Text("アラーム設定")) {
                     Toggle("スマートアラーム", isOn: $appState.userData.isSmartAlarmEnabled)
                         .tint(.appAccent)
-                    
+
                     HStack {
                         Text("センサー感度")
                         Spacer()
@@ -38,6 +44,44 @@ struct SettingsView: View {
                     }
                     Slider(value: $appState.movementThreshold, in: 1.0...3.0, step: 0.1) {
                         Text("センサー感度")
+                    }
+
+                    // AlarmKit 権限ステータス
+                    HStack(spacing: 12) {
+                        Image(systemName: alarmAuthIcon)
+                            .foregroundStyle(alarmAuthColor)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("アラーム権限")
+                            Text(alarmAuthStatusText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        switch alarmAuthState {
+                        case .authorized:
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        case .notDetermined:
+                            Button("許可する") {
+                                Task {
+                                    await appState.requestNotificationPermission()
+                                    alarmAuthState = AlarmManager.shared.authorizationState
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.appAccent)
+                        case .denied:
+                            Button("設定で変更") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.orange)
+                        @unknown default:
+                            EmptyView()
+                        }
                     }
                 }
                 
@@ -91,7 +135,47 @@ struct SettingsView: View {
                     }
                 }
                 
-                // --- 4. デバッグメニュー ---
+                // --- 4. アプリの権限 ---
+                Section(header: Text("アプリの権限")) {
+                    permissionRow(
+                        icon: "location.fill",
+                        title: "位置情報",
+                        statusText: locationStatusText,
+                        color: locationStatusColor,
+                        state: locationPermState
+                    ) {
+                        appState.locationManager.requestAuthorization()
+                    }
+
+                    permissionRow(
+                        icon: "mic.fill",
+                        title: "マイク",
+                        statusText: micStatusText,
+                        color: micStatusColor,
+                        state: micPermState
+                    ) {
+                        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                            DispatchQueue.main.async {
+                                micPermission = AVAudioSession.sharedInstance().recordPermission
+                            }
+                        }
+                    }
+
+                    permissionRow(
+                        icon: "calendar",
+                        title: "カレンダー",
+                        statusText: calendarStatusText,
+                        color: calendarStatusColor,
+                        state: calendarPermState
+                    ) {
+                        Task {
+                            _ = await appState.calendarManager.requestAccess()
+                            calendarStatus = EKEventStore.authorizationStatus(for: .event)
+                        }
+                    }
+                }
+
+                // --- 5. デバッグメニュー ---
                 #if DEBUG
                 Section(header: Text("🛠 デバッグ (本番では非表示)")) {
                     Toggle("プレミアム強制ON", isOn: $subscriptionManager.isDebugModeEnabled)
@@ -99,6 +183,16 @@ struct SettingsView: View {
                         .onChange(of: subscriptionManager.isDebugModeEnabled) { _, _ in
                             Task { await subscriptionManager.updateStatus() }
                         }
+
+                    Button {
+                        appState.selectedTab = appState.selectedTab == 1 ? 0 : 1
+                    } label: {
+                        HStack {
+                            Image(systemName: appState.selectedTab == 1 ? "sun.max.fill" : "moon.fill")
+                            Text(appState.selectedTab == 1 ? "朝画面に切替" : "夜画面に切替")
+                        }
+                    }
+                    .foregroundStyle(.red)
                 }
                 #endif
                 
@@ -117,7 +211,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
-            .offerCodeRedemption(isPresented: $isShowingRedeemSheet) // プロモコード入力シート
+            .offerCodeRedemption(isPresented: $isShowingRedeemSheet)
+            .onAppear {
+                alarmAuthState = AlarmManager.shared.authorizationState
+                micPermission = AVAudioSession.sharedInstance().recordPermission
+                calendarStatus = EKEventStore.authorizationStatus(for: .event)
+            } // プロモコード入力シート
             .alert("本当に削除しますか？", isPresented: $showDeleteAlert) {
                 Button("キャンセル", role: .cancel) { }
                 Button("削除する", role: .destructive) {
@@ -132,7 +231,158 @@ struct SettingsView: View {
     // ==========================================
     // MARK: - ヘルパー関数とコンポーネント
     // ==========================================
-    
+
+    // MARK: - 共通権限 Row ビルダー
+
+    enum PermState { case granted, notDetermined, denied }
+
+    @ViewBuilder
+    private func permissionRow(
+        icon: String,
+        title: String,
+        statusText: String,
+        color: Color,
+        state: PermState,
+        onRequest: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            switch state {
+            case .granted:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .notDetermined:
+                Button("許可する", action: onRequest)
+                    .buttonStyle(.bordered)
+                    .tint(.appAccent)
+            case .denied:
+                Button("設定で変更") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+            }
+        }
+    }
+
+    // MARK: - 位置情報
+
+    private var locationPermState: PermState {
+        switch appState.locationManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: return .granted
+        case .denied, .restricted:                    return .denied
+        default:                                       return .notDetermined
+        }
+    }
+
+    private var locationStatusText: String {
+        switch appState.locationManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: return "位置情報が許可されています"
+        case .denied:                                  return "拒否されました。設定アプリから変更できます"
+        case .restricted:                              return "制限されています"
+        default:                                       return "まだ許可されていません"
+        }
+    }
+
+    private var locationStatusColor: Color {
+        switch appState.locationManager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: return .green
+        case .denied, .restricted:                    return .orange
+        default:                                       return .secondary
+        }
+    }
+
+    // MARK: - マイク
+
+    private var micPermState: PermState {
+        switch micPermission {
+        case .granted:      return .granted
+        case .denied:       return .denied
+        default:            return .notDetermined
+        }
+    }
+
+    private var micStatusText: String {
+        switch micPermission {
+        case .granted:  return "マイクが許可されています"
+        case .denied:   return "拒否されました。設定アプリから変更できます"
+        default:        return "まだ許可されていません"
+        }
+    }
+
+    private var micStatusColor: Color {
+        switch micPermission {
+        case .granted:  return .green
+        case .denied:   return .orange
+        default:        return .secondary
+        }
+    }
+
+    // MARK: - カレンダー
+
+    private var calendarPermState: PermState {
+        switch calendarStatus {
+        case .fullAccess:    return .granted
+        case .notDetermined: return .notDetermined
+        default:             return .denied
+        }
+    }
+
+    private var calendarStatusText: String {
+        switch calendarStatus {
+        case .fullAccess:    return "カレンダーが許可されています"
+        case .denied:        return "拒否されました。設定アプリから変更できます"
+        case .restricted:    return "制限されています"
+        case .writeOnly:     return "書き込み専用（読み取り不可）"
+        default:             return "まだ許可されていません"
+        }
+    }
+
+    private var calendarStatusColor: Color {
+        switch calendarStatus {
+        case .fullAccess:    return .green
+        case .denied, .restricted, .writeOnly: return .orange
+        default:             return .secondary
+        }
+    }
+
+    // MARK: - AlarmKit
+
+    private var alarmAuthIcon: String {
+        switch alarmAuthState {
+        case .authorized:    return "bell.fill"
+        case .denied:        return "bell.slash.fill"
+        default:             return "bell.badge.fill"
+        }
+    }
+
+    private var alarmAuthColor: Color {
+        switch alarmAuthState {
+        case .authorized: return .green
+        case .denied:     return .orange
+        default:          return .secondary
+        }
+    }
+
+    private var alarmAuthStatusText: String {
+        switch alarmAuthState {
+        case .authorized:    return "アラームが許可されています"
+        case .denied:        return "拒否されました。設定アプリから変更できます"
+        default:             return "まだ許可されていません"
+        }
+    }
+
     private var premiumLegalFooter: some View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("プラン名称: Stellise Pro（月額）")

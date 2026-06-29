@@ -19,6 +19,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyReduced // 都市レベルの精度
     }
 
+    /// 権限が未決定の場合にポップアップを出す（設定画面から呼ぶ用）
+    func requestAuthorization() {
+        guard manager.authorizationStatus == .notDetermined else { return }
+        manager.requestWhenInUseAuthorization()
+    }
+
     /// 位置情報をリクエストする（許可がなければポップアップを出す）
     func requestLocation() async throws -> CLLocationCoordinate2D? {
         // 1. 権限状態を確認
