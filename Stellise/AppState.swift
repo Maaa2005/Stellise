@@ -931,9 +931,6 @@ class AppState: ObservableObject {
         } else {
             await MainActor.run { self.userData.calendarLinked = false }
         }
-        // 位置情報はホーム画面（天気・出発時刻）で必要になるため、オンボーディング完了時に要求する
-        // （ペイウォール表示中に権限ダイアログを重ねない）
-        _ = try? await locationManager.requestLocation()
         await MainActor.run {
             self.save()
             withAnimation {
@@ -941,6 +938,9 @@ class AppState: ObservableObject {
                 self.selectedTab = 1
             }
         }
+        // 位置情報はホーム表示「後」に要求する（天気・出発時刻に使う文脈が伝わる位置。
+        // ペイウォールや遷移アニメーションに権限ダイアログを重ねない）
+        _ = try? await locationManager.requestLocation()
     }
     
     func startNextIncompleteTask(fromIndex index: Int) {
