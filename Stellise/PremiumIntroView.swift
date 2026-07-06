@@ -50,7 +50,8 @@ struct PremiumIntroView: View {
                         }
                     }
                 }) {
-                    Text("\(product.displayPrice) / 月で試す")
+                    // ※無料トライアル未設定のため「試す」は誤解を招く表現になる（審査指摘リスク）
+                    Text("\(product.displayPrice) / 月で始める")
                         .fontWeight(.bold)
                         .frame(width: 300, height: 50)
                         .background(Color.appAccent)
@@ -74,15 +75,26 @@ struct PremiumIntroView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            
+
+            // 機種変更ユーザー向けの復元導線（審査ガイドライン3.1.1でも必須）
+            Button(action: {
+                Task { await subscriptionManager.restore() }
+            }) {
+                Text("購入を復元")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .underline()
+            }
+            .padding(.top, 2)
+
             // ★追加: 規約へのリンク群
             HStack(spacing: 15) {
                 Link("利用規約(EULA)", destination: eulaURL)
                     .font(.caption)
                     .foregroundColor(.appAccent)
-                
+
                 Text("|").font(.caption).foregroundColor(.secondary)
-                
+
                 Link("プライバシーポリシー", destination: privacyURL)
                     .font(.caption)
                     .foregroundColor(.appAccent)
@@ -90,19 +102,8 @@ struct PremiumIntroView: View {
             .padding(.bottom, 10)
         }
         .padding()
-        .onAppear {
-            triggerPermissions()
-        }
-    }
-    
-    private func triggerPermissions() {
-        // 1. 通知の許可
-        appState.requestNotificationPermission()
-        
-        // 2. 位置情報の許可
-        Task {
-            try? await appState.locationManager.requestLocation()
-        }
+        // ※権限リクエストはここでは出さない。ペイウォールの上に権限ダイアログが被さると
+        //   購入率・許可率の両方が下がるため、位置情報はオンボーディング完了時に要求する。
     }
 }
 

@@ -33,25 +33,23 @@ struct WelcomeView: View {
                     Text("次へ")
                         .fontWeight(.semibold)
                         .frame(width: 200, height: 50)
-                        .background(Color.appAccent)
+                        .background(isNameValid ? Color.appAccent : Color(.systemGray4))
                         .foregroundStyle(Color.white)
                         .cornerRadius(10)
                 }
+                .disabled(!isNameValid)
                 .padding(.top, 20)
                 Spacer()
             }
             .padding()
         }
-        // WelcomeView.swift の「次へ」ボタンなどのアクション内、
-        // または .onAppear に追加
-        .onAppear {
-            // 起動時に通知の許可を求める
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-                if granted {
-                    print("✅ 通知許可OK")
-                }
-            }
-        }
+        // ※初回画面での通知権限リクエストは廃止。
+        //   アラーム権限(AlarmKit)は夜画面・アラーム設定時に文脈付きで要求される。
+    }
+
+    /// 空欄のまま進むと夜画面が「おやすみなさい、さん」になるのを防ぐ
+    private var isNameValid: Bool {
+        !appState.userData.userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     

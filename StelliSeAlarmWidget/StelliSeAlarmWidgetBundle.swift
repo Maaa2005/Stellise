@@ -12,7 +12,6 @@ import SwiftUI
 struct StelliSeAlarmWidgetBundle: WidgetBundle {
     var body: some Widget {
         StelliSeAlarmWidget()
-        StelliSeAlarmWidgetControl()
         StelliSeAlarmWidgetLiveActivity()
     }
 }

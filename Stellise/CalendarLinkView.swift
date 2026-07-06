@@ -10,7 +10,7 @@ struct CalendarLinkView: View {
     
     var body: some View {
         VStack {
-            Text("ステップ 5 / 5")
+            Text("ステップ 6 / 6")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top)
@@ -85,9 +85,20 @@ struct CalendarLinkView: View {
                                         }
                                     }
                                 })
-                                
+
                                 // --- スキップボタン ---
-                               
+                                // カレンダー連携を強制しない（権限ダイアログなしで次へ進める）。
+                                // 連携は後から設定画面でいつでも許可できる。
+                                NavigationLink(destination: PremiumIntroView()) {
+                                    Text("今は連携しない")
+                                        .font(.callout)
+                                        .foregroundStyle(isAgreed ? .secondary : Color(.systemGray4))
+                                }
+                                .disabled(!isAgreed) // 規約同意は必須
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    appState.userData.calendarLinked = false
+                                    appState.save()
+                                })
             }
             .padding()
             .navigationBarBackButtonHidden(true)

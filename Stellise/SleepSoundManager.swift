@@ -77,10 +77,12 @@ class SleepSoundManager: ObservableObject {
 
     private func activatePlaybackSession() {
         do {
+            // .playback にするとマイク入力が無効になり、稼働中の睡眠音解析(YAMNet)が
+            // 沈黙してスマートアラームが壊れるため、.playAndRecord で再生と録音を両立する
             try AVAudioSession.sharedInstance().setCategory(
-                .playback,
+                .playAndRecord,
                 mode: .default,
-                options: [.mixWithOthers]
+                options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothHFP]
             )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {

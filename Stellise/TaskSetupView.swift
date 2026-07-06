@@ -40,7 +40,7 @@ struct TaskSetupView: View {
     // -----------------------------------------------------------------
     var body: some View {
         VStack {
-            Text("ステップ 5 / 5")
+            Text("ステップ 5 / 6")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top)

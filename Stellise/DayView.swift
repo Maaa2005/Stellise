@@ -1,5 +1,6 @@
 import SwiftUI
 import EventKit
+import StoreKit
 
 struct DayView: View {
 
@@ -7,6 +8,7 @@ struct DayView: View {
     @State private var isShowingReportModal: Bool = false
     @State private var isShowingAlarmPicker: Bool = false
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @Environment(\.requestReview) private var requestReview
     
     private var allTasksCompleted: Bool {
         !appState.dailyTasks.isEmpty && appState.dailyTasks.allSatisfy { $0.isCompleted }
@@ -17,6 +19,18 @@ struct DayView: View {
             formatter.dateFormat = "M月d日 EEEE"
             return formatter.string(from: Date())
         }
+
+    /// 全タスク完了の瞬間にApp Storeレビューを依頼する（30日に1回まで）
+    private func requestReviewIfAppropriate() {
+        let thirtyDays: TimeInterval = 30 * 24 * 3600
+        if let last = appState.userData.lastReviewRequestDate,
+           Date().timeIntervalSince(last) < thirtyDays {
+            return
+        }
+        appState.userData.lastReviewRequestDate = Date()
+        appState.save()
+        requestReview()
+    }
     
     var body: some View {
             ZStack {
@@ -193,12 +207,12 @@ struct DayView: View {
                                 Image(systemName: "checkmark.circle")
                                     .font(.system(size: 60, weight: .ultraLight))
                                     .foregroundStyle(.white)
-                                
+
                                 Text("準備完了")
                                     .font(.title3)
                                     .fontWeight(.medium)
                                     .foregroundStyle(.white)
-                                
+
                                 Text("すべてのタスクが完了しました。\n今日も良い一日を。")
                                     .font(.subheadline)
                                     .multilineTextAlignment(.center)
@@ -208,6 +222,8 @@ struct DayView: View {
                             .padding(40)
                             .background(.ultraThinMaterial)
                             .cornerRadius(32)
+                            // 「準備完了」= ユーザー体験のピークでレビューを依頼（30日に1回まで）
+                            .onAppear { requestReviewIfAppropriate() }
                             Spacer()
                             
                         } else {
@@ -267,8 +283,13 @@ struct DayView: View {
             
             .onAppear {
             // タスクは自動生成しない（アラーム発火 or 手動「生成」ボタンで作る）
-            if appState.lastSleepScore > 0 {
+            // レポートモーダルは「新しいレポートが出た直後の1回だけ」表示する
+            // （以前は lastSleepScore > 0 の間、タブを切り替えるたびに再表示されていた）
+            if appState.pendingSleepReportModal {
+                appState.pendingSleepReportModal = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { isShowingReportModal = true }
+            }
+            if appState.lastSleepScore > 0 {
                 appState.startMorningTrafficMonitoring(isPremium: subscriptionManager.isPremium)
             }
         }
@@ -281,7 +302,11 @@ struct DayView: View {
         .sheet(isPresented: $isShowingReportModal) {
             SleepReportModalView().presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $isShowingAlarmPicker) {
+        .sheet(isPresented: $isShowingAlarmPicker, onDismiss: {
+            // 「完了」を押さずスワイプで閉じても、変更済みの時刻を保存してOSに再予約する
+            appState.save()
+            appState.scheduleMorningAlarm()
+        }) {
             VStack(spacing: 20) {
                 Text("アラーム設定").font(.headline).padding(.top)
                 DatePicker("", selection: Binding(

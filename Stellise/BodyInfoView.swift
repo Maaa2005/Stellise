@@ -8,7 +8,7 @@ struct BodyInfoView: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        Text("ステップ 2 / 5")
+        Text("ステップ 2 / 6")
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.top)

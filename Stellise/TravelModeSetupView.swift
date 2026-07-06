@@ -15,7 +15,7 @@ struct TravelModeSetupView: View {
     
     var body: some View {
         VStack {
-            Text("ステップ 4 / 5")
+            Text("ステップ 4 / 6")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top)

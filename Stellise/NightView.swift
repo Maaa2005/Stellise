@@ -24,7 +24,9 @@ struct NightView: View {
                 
                 // --- 中央: 時間表示 (現在時刻メイン) --- (維持)
                 VStack(spacing: 12) {
-                    Text("おやすみなさい、\(appState.userData.userName)さん")
+                    Text(appState.userData.userName.isEmpty
+                         ? "おやすみなさい"
+                         : "おやすみなさい、\(appState.userData.userName)さん")
                         .font(.system(.title3, design: .default, weight: .thin))
                         .tracking(2)
                         .foregroundStyle(.white.opacity(0.9))
@@ -87,7 +89,11 @@ struct NightView: View {
             // ★★★ 追加: 画面を離れる時はオートロックを元の設定(有効)に戻す ★★★
             UIApplication.shared.isIdleTimerDisabled = false
         }
-        .sheet(isPresented: $isShowingTimePicker) {
+        .sheet(isPresented: $isShowingTimePicker, onDismiss: {
+            // 「完了」を押さずスワイプで閉じても、変更済みの時刻を保存してOSに再予約する
+            appState.save()
+            appState.scheduleMorningAlarm()
+        }) {
             // 時刻ピッカー (維持)
             VStack(spacing: 20) {
                 Text("アラーム設定").font(.headline).padding(.top)
@@ -114,9 +120,8 @@ struct NightView: View {
             }
             .presentationDetents([.medium])
         }
-        .fullScreenCover(isPresented: $appState.isAlarmRinging) {
-            AlarmRingingView() // アラーム画面 (維持)
-        }
+        // ※アラーム画面の表示は StelliseApp 側 (zIndex 999 のオーバーレイ) に一本化。
+        //   ここでも fullScreenCover を出すと二重表示になり、画面輝度の保存/復元が壊れる。
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { nowTime in
             // タイマー監視・スマートアラーム判定ロジック (維持)
             self.now = nowTime
@@ -304,6 +309,7 @@ struct NightView: View {
     private func startSleepMonitoring() {
         if !appState.sensorManager.isDetecting {
             print("🌙 NightView: 睡眠・音声センサー起動")
+            appState.startNightSession() // 睡眠レポート用の集計を開始
             appState.sensorManager.startDetection(threshold: appState.movementThreshold)
             Task { await appState.soundAnalyzer.startAnalyzing() }
             appState.smartAlarmTriggered = false

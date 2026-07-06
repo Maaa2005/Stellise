@@ -11,9 +11,6 @@
 		CA4361322FF23CC100599827 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA4361312FF23CC100599827 /* WidgetKit.framework */; };
 		CA4361342FF23CC100599827 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA4361332FF23CC100599827 /* SwiftUI.framework */; };
 		CA4361452FF23CC500599827 /* StelliSeAlarmWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CA4361302FF23CC000599827 /* StelliSeAlarmWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		CAB911B12F2B864700F81533 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B02F2B864700F81533 /* FirebaseAnalytics */; };
-		CAB911B32F2B864700F81533 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B22F2B864700F81533 /* FirebaseAnalyticsCore */; };
-		CAB911B52F2B864700F81533 /* FirebaseAnalyticsIdentitySupport in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911B42F2B864700F81533 /* FirebaseAnalyticsIdentitySupport */; };
 		CAB911BF2F2B931E00F81533 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911BE2F2B931E00F81533 /* FirebaseAuth */; };
 		CAB911C12F2B932700F81533 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = CAB911C02F2B932600F81533 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
@@ -102,10 +99,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CAB911B52F2B864700F81533 /* FirebaseAnalyticsIdentitySupport in Frameworks */,
 				CAB911BF2F2B931E00F81533 /* FirebaseAuth in Frameworks */,
-				CAB911B12F2B864700F81533 /* FirebaseAnalytics in Frameworks */,
-				CAB911B32F2B864700F81533 /* FirebaseAnalyticsCore in Frameworks */,
 				A60C19923931C39C3D4BCEA3 /* libPods-Stellise.a in Frameworks */,
 				CAB911C12F2B932700F81533 /* FirebaseFirestore in Frameworks */,
 			);
@@ -340,10 +334,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = MA8N4K6DY9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StelliSeAlarmWidget/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StelliSeAlarmWidget/StelliSeAlarmWidget.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = StelliSeAlarmWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -352,7 +347,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev.StelliSeAlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -371,10 +366,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = MA8N4K6DY9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StelliSeAlarmWidget/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = StelliSeAlarmWidget/StelliSeAlarmWidget.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = StelliSeAlarmWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -383,7 +379,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev.StelliSeAlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -527,7 +523,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Stellise/StelliseDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = MA8N4K6DY9;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -552,7 +548,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -573,7 +569,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Stellise/Stellise.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = MA8N4K6DY9;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -598,7 +594,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuutokiwai.Stellise.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -655,21 +651,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		CAB911B02F2B864700F81533 /* FirebaseAnalytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
-		};
-		CAB911B22F2B864700F81533 /* FirebaseAnalyticsCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalyticsCore;
-		};
-		CAB911B42F2B864700F81533 /* FirebaseAnalyticsIdentitySupport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalyticsIdentitySupport;
-		};
 		CAB911BE2F2B931E00F81533 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CAB911AF2F2B864700F81533 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

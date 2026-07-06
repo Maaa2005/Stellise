@@ -1,11 +1,24 @@
 import SwiftUI
 import FirebaseCore
+import FirebaseAuth
 import AlarmKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         FirebaseApp.configure()
+
+        // 匿名サインイン: サーバAPIのBearer認証・Firestoreのプレミアム状態フォールバック・
+        // アカウント削除を機能させるために必須（サインインUIは持たない）
+        if Auth.auth().currentUser == nil {
+            Auth.auth().signInAnonymously { result, error in
+                if let error = error {
+                    print("❌ 匿名サインイン失敗: \(error.localizedDescription)")
+                } else if let uid = result?.user.uid {
+                    print("✅ 匿名サインイン成功: \(uid)")
+                }
+            }
+        }
         return true
     }
 }

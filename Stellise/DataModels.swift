@@ -22,6 +22,8 @@ struct UserData: Codable, Sendable {
     var calendarLinked: Bool = false
     var isSmartAlarmEnabled: Bool = true
     var feedbackHistory: [TaskFeedback] = []
+    // Optionalなので過去バージョンの保存データもそのまま読める
+    var lastReviewRequestDate: Date? = nil
 }
 
 // ★ 修正: 'Equatable' を追加しました

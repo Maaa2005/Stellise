@@ -28,7 +28,7 @@ struct BedFirmnessView: View {
     // -----------------------------------------------------------------
     var body: some View {
         VStack {
-            Text("ステップ 3 / 5")
+            Text("ステップ 3 / 6")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top)
