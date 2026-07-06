@@ -28,7 +28,7 @@ struct WelcomeView: View {
                     .padding(.top, 40)
 
                 NavigationLink {
-                    BodyInfoView()
+                    BedFirmnessView()
                 } label: {
                     Text("次へ")
                         .fontWeight(.semibold)

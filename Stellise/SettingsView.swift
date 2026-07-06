@@ -205,7 +205,34 @@ struct SettingsView: View {
                 }
                 #endif
                 
-                // --- 5. アカウント ---
+                // --- 6. クレジット ---
+                // OtoLogic音素材は CC BY 4.0（商用可・クレジット表記必須）。
+                // この表記がライセンス上の必須条件なので削除しないこと。
+                Section(
+                    header: Text("クレジット"),
+                    footer: Text("アラーム音・環境音には OtoLogic の音素材を使用しています。")
+                ) {
+                    Link(destination: URL(string: "https://otologic.jp")!) {
+                        HStack {
+                            Text("サウンド素材: OtoLogic")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Link(destination: URL(string: "https://creativecommons.org/licenses/by/4.0/deed.ja")!) {
+                        HStack {
+                            Text("ライセンス: CC BY 4.0")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                // --- 7. アカウント ---
                 // ※「ログアウト」は撤去: 本アプリは匿名アカウントのみでサインイン機能が無いため、
                 //   ログアウトは意味を持たず（データが孤立するだけ）誤解を招く。
                 Section(footer: Text("アカウントを削除すると、これまでの睡眠データや設定がすべて消去され、復元することはできません。")) {

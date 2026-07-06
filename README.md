@@ -124,3 +124,9 @@ open Stellise.xcworkspace
 
 - 実行には `GoogleService-Info.plist`（Firebase）が必要です（リポジトリには含めていません）。
 - iOS シミュレータ／実機で動作します。
+
+---
+
+## クレジット（Credits）
+
+- アラーム音・環境音: [OtoLogic](https://otologic.jp)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja)）

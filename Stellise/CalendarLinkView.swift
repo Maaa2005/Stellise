@@ -10,7 +10,7 @@ struct CalendarLinkView: View {
     
     var body: some View {
         VStack {
-            Text("ステップ 6 / 6")
+            Text("ステップ 5 / 5")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top)
