@@ -50,17 +50,19 @@ struct PremiumIntroView: View {
                         }
                     }
                 }) {
-                    // ※無料トライアル未設定のため「試す」は誤解を招く表現になる（審査指摘リスク）
-                    Text("\(product.displayPrice) / 月で始める")
+                    // App Store Connect で無料トライアル(Introductory Offer)を設定すると
+                    // 自動で「◯日間無料で試す」に切り替わる。未設定の間は価格のみ表示
+                    // （トライアルが無いのに「試す」と書くのは審査指摘リスクがあるため）
+                    Text(ctaText(for: product))
                         .fontWeight(.bold)
                         .frame(width: 300, height: 50)
                         .background(Color.appAccent)
                         .foregroundStyle(.white)
                         .cornerRadius(12)
                 }
-                
+
                 // ★追加: サブスクリプションの必須説明文（小さく表示）
-                Text("プラン名称: Stellise Pro（月額）\n価格と期間: \(product.displayPrice) / 月\nお支払いはiTunesアカウントに請求されます。期間終了の24時間前までに解約しない限り自動更新されます。")
+                Text(legalText(for: product))
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -104,6 +106,36 @@ struct PremiumIntroView: View {
         .padding()
         // ※権限リクエストはここでは出さない。ペイウォールの上に権限ダイアログが被さると
         //   購入率・許可率の両方が下がるため、位置情報はオンボーディング完了時に要求する。
+    }
+
+    // MARK: - CTA・法定表記（Introductory Offer 対応）
+
+    private func ctaText(for product: Product) -> String {
+        if let intro = product.subscription?.introductoryOffer, intro.paymentMode == .freeTrial {
+            return "\(periodText(intro.period))無料で試す"
+        }
+        return "\(product.displayPrice) / 月で始める"
+    }
+
+    private func legalText(for product: Product) -> String {
+        var lines = ["プラン名称: Stellise Pro（月額）"]
+        if let intro = product.subscription?.introductoryOffer, intro.paymentMode == .freeTrial {
+            lines.append("\(periodText(intro.period))の無料トライアル終了後、\(product.displayPrice) / 月で自動更新されます。")
+        } else {
+            lines.append("価格と期間: \(product.displayPrice) / 月")
+        }
+        lines.append("お支払いはiTunesアカウントに請求されます。期間終了の24時間前までに解約しない限り自動更新されます。")
+        return lines.joined(separator: "\n")
+    }
+
+    private func periodText(_ period: Product.SubscriptionPeriod) -> String {
+        switch period.unit {
+        case .day:   return "\(period.value)日間"
+        case .week:  return "\(period.value * 7)日間"
+        case .month: return "\(period.value)か月間"
+        case .year:  return "\(period.value)年間"
+        @unknown default: return ""
+        }
     }
 }
 
