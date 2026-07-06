@@ -775,9 +775,15 @@ class AppState: ObservableObject {
         guard let loc = locationManager.lastKnownLocation else { return }
         let urlString = "\(serverBaseURL)/get_weather?lat=\(loc.latitude)&lon=\(loc.longitude)"
         guard let url = URL(string: urlString) else { return }
-        
+
+        // サーバ側で全エンドポイント認証必須にしているため、天気にもトークンを付ける
+        var request = URLRequest(url: url)
+        if let token = await getAuthToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: request)
             let decoded = try JSONDecoder().decode(WeatherResponse.self, from: data)
             self.rawWeatherResponse = decoded
             

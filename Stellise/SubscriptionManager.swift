@@ -7,6 +7,7 @@ import Combine
 enum ProductID: String, CaseIterable {
     // ★ App Store Connectで登録する製品ID（プロダクトID）と完全に一致させること
     case proMonthly = "com.yuutokiwai.Stellise.pro.monthly.v1"
+    case proYearly  = "com.yuutokiwai.Stellise.pro.yearly.v1"
 }
 
 @MainActor
@@ -119,14 +120,23 @@ class SubscriptionManager: ObservableObject {
             }
         }
         
-        // 2. Fallback: StoreKitで確認できなければFirestoreを確認 (クロスプラットフォーム対応用)
+        // 2. StoreKitで有効ならFirestoreへ同期する
+        //    （サーバ側 /get_travel_time・執事モードは Firestore の isPremium で判定するため、
+        //      ここで書いておかないと正規のプレミアムユーザーがサーバ機能を使えない）
+        if active, let user = Auth.auth().currentUser {
+            try? await db.collection("users").document(user.uid)
+                .setData(["isPremium": true,
+                          "premiumCheckedAt": FieldValue.serverTimestamp()], merge: true)
+        }
+
+        // 3. Fallback: StoreKitで確認できなければFirestoreを確認 (プロモ付与・クロスプラットフォーム用)
         if !active, let user = Auth.auth().currentUser {
             if let doc = try? await db.collection("users").document(user.uid).getDocument(),
                let isPrem = doc.data()?["isPremium"] as? Bool, isPrem {
                 active = true
             }
         }
-        
+
         // メインスレッドでUIを更新
         self.isPremium = active
         print("👑 プレミアム状態チェック: \(active ? "有効" : "無効")")

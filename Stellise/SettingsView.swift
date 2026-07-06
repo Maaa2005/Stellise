@@ -416,10 +416,14 @@ struct SettingsView: View {
 
     // ストアフロントの実価格を表示（ハードコードだと海外ストアや価格改定でズレるため）
     private var displayPriceText: String {
-        if let product = subscriptionManager.products.first {
-            return "\(product.displayPrice) / 月"
-        }
-        return "App Store 表示価格 / 月"
+        let parts = subscriptionManager.products
+            .sorted { $0.price < $1.price }
+            .map { p -> String in
+                p.subscription?.subscriptionPeriod.unit == .year
+                    ? "\(p.displayPrice) / 年"
+                    : "\(p.displayPrice) / 月"
+            }
+        return parts.isEmpty ? "App Store 表示価格" : parts.joined(separator: "・")
     }
 
     private var premiumLegalFooter: some View {
