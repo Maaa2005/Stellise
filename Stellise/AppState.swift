@@ -316,7 +316,10 @@ class AppState: ObservableObject {
                     }
                     
                     let wakeUpDate = routineEndDate.addingTimeInterval(-3600)
-                    if wakeUpDate > Date() {
+                    // 朝の起床時刻として妥当な時間帯(3:00-10:59)のみアラームを上書きする。
+                    // 昼夕の予定から逆算した時刻まで設定すると、起床後の再生成で午後に鳴る事故になる。
+                    let wakeHour = Calendar.current.component(.hour, from: wakeUpDate)
+                    if wakeUpDate > Date(), (3..<11).contains(wakeHour) {
                         let comp = Calendar.current.dateComponents([.hour, .minute], from: wakeUpDate)
                         if let h = comp.hour, let m = comp.minute {
                             self.userData.alarmHour = h
@@ -446,9 +449,11 @@ class AppState: ObservableObject {
     
     private func generateFallbackTasks(departureTime: Date) {
         print("🛡 フォールバック: マスタタスクからスケジュールを自動生成します")
-        
+
         guard !userData.masterTasks.isEmpty else {
             print("⚠️ マスタタスクも空です。タスクを生成できません。")
+            // AIも失敗しフォールバックも作れない: 無言で空に戻さず、再試行UI(DayView)を出す
+            Task { @MainActor in self.connectionError = true }
             return
         }
         
