@@ -9,21 +9,22 @@ struct NightView: View {
     @State private var now = Date()
     @State private var selectedTimerDuration: TimeInterval? = nil
     @State private var isShowingPremium = false
-    
+    @State private var hasAppeared = false
+    @State private var ringProgress: Double = 0
+
     var body: some View {
         ZStack {
             // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
 
             // --- コンテンツ ---
             VStack(spacing: 0) {
-                
-                // ★★★ 修正: 日付と天気があったHeader部分を削除し、上部の余白だけを確保 ★★★
+
                 Spacer().frame(height: 20)
-                
+
                 Spacer()
-                
-                // --- 中央: 時間表示 (現在時刻メイン) --- (維持)
-                VStack(spacing: 12) {
+
+                // --- 中央: 就寝〜起床の残り時間を示す円形リング ---
+                VStack(spacing: 16) {
                     Text(appState.userData.userName.isEmpty
                          ? "おやすみなさい"
                          : "おやすみなさい、\(appState.userData.userName)さん")
@@ -31,16 +32,13 @@ struct NightView: View {
                         .tracking(2)
                         .foregroundStyle(.white.opacity(0.9))
                         .shadow(color: .black.opacity(0.3), radius: 4)
-                    
-                    // 現在時刻
-                    TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                        Text(context.date, style: .time)
-                            // P0: デザイントークンの大時計フォント（rounded + monospacedDigit）
-                            .font(Theme.Typography.clock(100))
-                            .foregroundStyle(Theme.Palette.textOnDark)
-                            .shadow(color: Color.white.opacity(0.2), radius: 10, x: 0, y: 0)
-                    }
-                    
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 8)
+
+                    sleepRing
+                        .opacity(hasAppeared ? 1 : 0)
+                        .scaleEffect(hasAppeared ? 1 : 0.9)
+
                     // アラーム時刻 (タップでピッカーを開く)
                     Button(action: {
                         let generator = UIImpactFeedbackGenerator(style: .light)
@@ -50,8 +48,8 @@ struct NightView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "bell.fill")
                                 .font(.subheadline)
-                            Text(String(format: "%02d:%02d", appState.userData.alarmHour, appState.userData.alarmMinute))
-                                .font(.system(.title2, design: .default, weight: .regular))
+                            Text(String(format: "%02d:%02d 起床", appState.userData.alarmHour, appState.userData.alarmMinute))
+                                .font(.system(.title3, design: .default, weight: .medium))
                                 .monospacedDigit()
                         }
                         .padding(.horizontal, 24)
@@ -61,19 +59,18 @@ struct NightView: View {
                     }
                     .foregroundStyle(.white)
                     .padding(.top, 4)
+                    .opacity(hasAppeared ? 1 : 0)
                 }
-                
+
                 Spacer()
-                
+
                 // --- 下部: 睡眠環境音セクション ---
                 sleepSoundSection
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 16)
             } // VStackここまで
-            
-            // ★★★ 追加: うつ伏せブラックアウト機能 (省電力対応) ★★★
-            // 有機ELディスプレイ(OLED)は、真っ黒な画面を被せるだけで劇的なバッテリー節約になります。
-          
         } // ZStackここまで
         .onAppear {
             now = Date()
@@ -82,6 +79,9 @@ struct NightView: View {
             appState.requestNotificationPermission() // AlarmKit 権限ポップアップ（未許可時のみ表示）
             appState.scheduleMorningAlarm()
             UIApplication.shared.isIdleTimerDisabled = true
+            withAnimation(.easeOut(duration: 1.4)) {
+                hasAppeared = true
+            }
         }
         .onDisappear {
             appState.sleepSoundManager.stopSound()
@@ -110,12 +110,15 @@ struct NightView: View {
                     }
                 ), displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel).labelsHidden()
-                Button("完了") { isShowingTimePicker = false
-                                        appState.save()
-                                        
-                                        // ★★★ 追加: ピッカーを閉じたら、OSに新しい時間を予約する ★★★
-                                        appState.requestNotificationPermission() // 初回のみ許可ダイアログが出る
-                                        appState.scheduleMorningAlarm()}.padding()
+                Button("完了") {
+                    isShowingTimePicker = false
+                    appState.save()
+
+                    // ★★★ 追加: ピッカーを閉じたら、OSに新しい時間を予約する ★★★
+                    appState.requestNotificationPermission() // 初回のみ許可ダイアログが出る
+                    appState.scheduleMorningAlarm()
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }.padding()
                 
             }
             .presentationDetents([.medium])
@@ -125,16 +128,17 @@ struct NightView: View {
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { nowTime in
             // タイマー監視・スマートアラーム判定ロジック (維持)
             self.now = nowTime
-            
+
             let calendar = Calendar.current
             var comp = calendar.dateComponents([.year, .month, .day], from: nowTime)
             comp.hour = appState.userData.alarmHour
             comp.minute = appState.userData.alarmMinute
             guard let alarmDate = calendar.date(from: comp) else { return }
-            
+
             let targetDate = alarmDate < nowTime.addingTimeInterval(-60) ? alarmDate.addingTimeInterval(86400) : alarmDate
             let timeUntilAlarm = targetDate.timeIntervalSince(nowTime)
-            
+            ringProgress = sleepProgress(now: nowTime, wake: targetDate)
+
             // スマートアラーム窓判定 (30分前からマイクON)
             if timeUntilAlarm <= 1800 && timeUntilAlarm > 0 {
                 appState.isSmartAlarmWindow = true
@@ -146,7 +150,6 @@ struct NightView: View {
             if appState.userData.isAlarmActive && !appState.isAlarmRinging && !isShowingTimePicker && !appState.isAlarmFinished {
                 if timeUntilAlarm <= 0 && timeUntilAlarm > -60 {
                     print("⏰ 時間到達: アラーム発動！")
-                    appState.generateNewMission()
                     // アラーム発火を起点に、朝のタスクを生成（朝画面の自動生成は廃止したため）
                     Task { await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium) }
                     appState.isAlarmRinging = true
@@ -155,7 +158,72 @@ struct NightView: View {
             }
         }
     } // body
-    
+
+    // ==========================================
+    // MARK: - 就寝〜起床リング
+    // ==========================================
+
+    /// 就寝〜起床の残り時間を示す円形リング。中央に「あと◯時間◯分」＋起床時刻。
+    private var sleepRing: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.12), lineWidth: 14)
+
+            Circle()
+                .trim(from: 0, to: max(0.0035, ringProgress))
+                .stroke(
+                    AngularGradient(colors: [Theme.Palette.accentDeep, Theme.Palette.accent, Theme.Palette.accentLight],
+                                     center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)),
+                    style: StrokeStyle(lineWidth: 14, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .shadow(color: Theme.Palette.accent.opacity(0.5), radius: 8)
+                .animation(.easeInOut(duration: 0.6), value: ringProgress)
+
+            VStack(spacing: 4) {
+                Text("あと")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+                Text(remainingUntilAlarmText)
+                    .font(Theme.Typography.clock(52))
+                    .foregroundStyle(Theme.Palette.textOnDark)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+            .padding(24)
+        }
+        .frame(width: 240, height: 240)
+        .contentShape(Circle())
+        .onTapGesture {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            isShowingTimePicker = true
+        }
+    }
+
+    /// 就寝(セッション開始)〜起床(アラーム時刻)を 0...1 で表す進捗。
+    private func sleepProgress(now: Date, wake: Date) -> Double {
+        let start = appState.sleepSessionStart ?? now
+        let total = wake.timeIntervalSince(start)
+        guard total > 0 else { return 0 }
+        let elapsed = now.timeIntervalSince(start)
+        return min(1, max(0, elapsed / total))
+    }
+
+    private var remainingUntilAlarmText: String {
+        let calendar = Calendar.current
+        var comp = calendar.dateComponents([.year, .month, .day], from: now)
+        comp.hour = appState.userData.alarmHour
+        comp.minute = appState.userData.alarmMinute
+        guard let alarmDate = calendar.date(from: comp) else { return "--:--" }
+        let targetDate = alarmDate < now.addingTimeInterval(-60) ? alarmDate.addingTimeInterval(86400) : alarmDate
+
+        let remaining = max(0, targetDate.timeIntervalSince(now))
+        let hours = Int(remaining) / 3600
+        let minutes = (Int(remaining) % 3600) / 60
+        return hours > 0 ? "\(hours)時間\(minutes)分" : "\(minutes)分"
+    }
+
     // ==========================================
     // MARK: - 睡眠環境音セクション
     // ==========================================

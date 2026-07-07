@@ -98,12 +98,7 @@ class AppState: ObservableObject {
     @Published var isSmartAlarmWindow: Bool = false
     @Published var smartAlarmTriggered: Bool = false
     @Published var isFaceDown: Bool = false
-    
-    // アラームミッション用
-    @Published var missionNumber1: Int = Int.random(in: 10...99)
-    @Published var missionNumber2: Int = Int.random(in: 10...99)
-    @Published var missionAnswerText: String = ""
-    
+
     // MARK: - 天気・背景
     @Published var currentTempFeelsLike: String = "--°C"
     @Published var weatherIconName: String = "weather_sunny"
@@ -116,7 +111,7 @@ class AppState: ObservableObject {
     @Published var lastSleepScore: Int = 0
 
     // MARK: - 睡眠レポート集計（端末内で完結）
-    private var sleepSessionStart: Date? = nil
+    private(set) var sleepSessionStart: Date? = nil
     private var nightlySnoreCount: Int = 0
     private var nightlyMovementCount: Int = 0
     /// 新しいレポート確定後、朝画面で1回だけモーダルを出すためのフラグ
@@ -636,7 +631,6 @@ class AppState: ObservableObject {
         selectedTab = 0
         sensorManager.stopDetection()
         Task { await soundAnalyzer.stopAnalyzing() }
-        missionAnswerText = ""
         cancelMorningAlarm()
         // 鳴動中のスヌーズガードアラーム（AlarmKit側）も確実に止める
         try? AlarmManager.shared.stop(id: snoozeGuardAlarmID)
@@ -698,7 +692,6 @@ class AppState: ObservableObject {
                     if !Task.isCancelled {
                         if let currentTask = self.dailyTasks.first(where: { $0.id == firstTask.id }), !currentTask.isCompleted {
                             print("🚨 内部スヌーズガード発動！タスク未完了のため強制アラーム！")
-                            self.generateNewMission()
                             self.isAlarmRinging = true
                             self.startAlarmEffects()
                         }
@@ -917,7 +910,6 @@ class AppState: ObservableObject {
             
             if triggerSounds.contains(sound) {
                 print("🎤 音声検知(\(sound)) -> スマートアラーム発動")
-                generateNewMission()
                 smartAlarmTriggered = true
                 isAlarmRinging = true
                 startAlarmEffects()
@@ -1004,18 +996,6 @@ class AppState: ObservableObject {
         AudioServicesPlaySystemSound(1005)
     }
     
-    func generateNewMission() {
-        missionNumber1 = Int.random(in: 10...99)
-        missionNumber2 = Int.random(in: 10...99)
-        missionAnswerText = ""
-    }
-    
-    func checkMissionAnswer() -> Bool {
-        // 数字キーボードでも確定時に空白が混ざることがあるためトリムする
-        let trimmed = missionAnswerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let input = Int(trimmed) ?? -999
-        return input == (missionNumber1 + missionNumber2)
-    }
     
     func resetNightlyState() async {
         isAlarmRinging = false

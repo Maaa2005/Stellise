@@ -7,30 +7,61 @@
 
 
 import SwiftUI
+import Combine
 
 struct AlarmRingingView: View {
 
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
-    // 答えが間違っていた時にViewを揺らすためのState
-    @State private var shakeOffset: CGFloat = 0
-    @FocusState private var isTextFieldFocused: Bool
     @State private var flashOpacity: Double = 0.0
         // ★ 2. 元の画面の明るさを保存する State
     @State private var originalBrightness: CGFloat = 0.0
-    
+    // 夜→朝への色変化用（ゆっくり明るくなる「日の出」演出）
+    @State private var dawnOpacity: Double = 0
+    // 呼吸に同期した波紋（Headspace的な演出）
+    @State private var rippleGrow: Bool = false
+    @State private var breathTick = Timer.publish(every: 2.6, on: .main, in: .common).autoconnect()
+
     var body: some View {
         ZStack {
-            
+
             // ★★★ 修正（ここから） ★★★
-                        
+
                         // --- レイヤー 1 (一番下) ---
-                        // 背景 (暗めの色)
-                        Color.black.opacity(0.8)
-                            .edgesIgnoringSafeArea(.all)
+                        // 背景: 夜の紺グラデ → 呼び出しが続くほどゆっくり明るい朝色へ
+                        ZStack {
+                            LinearGradient.nightImmersive
+                            LinearGradient(
+                                colors: [Color(hex: "#2A2A4E"), Color(hex: "#6E4A78"), Color(hex: "#E8A878")],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                            .opacity(dawnOpacity)
+                        }
+                        .edgesIgnoringSafeArea(.all)
 
                         // --- レイヤー 2 ---
+                        // 呼吸に同期して広がる波紋（強い明滅の代わりに、心拍を上げない柔らかい演出）
+                        ZStack {
+                            ForEach(0..<3, id: \.self) { i in
+                                Circle()
+                                    .stroke(Theme.Palette.accentLight.opacity(0.45), lineWidth: 2)
+                                    .scaleEffect(rippleGrow ? 2.4 : 0.3)
+                                    .opacity(rippleGrow ? 0 : 0.6)
+                                    // 停止時(false)に repeatForever が逆再生され続けないよう、開始時のみ適用する
+                                    .animation(
+                                        rippleGrow
+                                            ? .easeOut(duration: 2.6)
+                                                .repeatForever(autoreverses: false)
+                                                .delay(Double(i) * 0.85)
+                                            : nil,
+                                        value: rippleGrow
+                                    )
+                            }
+                        }
+                        .frame(width: 260, height: 260)
+                        .allowsHitTesting(false)
+
                         // 点滅する光 (VStackの後ろに移動)
                         RadialGradient(
                             gradient: Gradient(colors: [.clear, .clear, .white]),
@@ -38,10 +69,10 @@ struct AlarmRingingView: View {
                             startRadius: 150,
                             endRadius: 350
                         )
-                        .opacity(flashOpacity)
+                        .opacity(flashOpacity * 0.4)
                         .edgesIgnoringSafeArea(.all)
                         .animation(
-                            .easeInOut(duration: 0.2)
+                            .easeInOut(duration: 1.3)
                             .repeatForever(autoreverses: true),
                             value: flashOpacity
                         )
@@ -49,41 +80,19 @@ struct AlarmRingingView: View {
                         .allowsHitTesting(false)
 
                         // --- レイヤー 3 (一番上) ---
-                        // ボタンや計算問題 (これが一番手前に来る)
                         VStack(spacing: 40) {
                             Spacer()
-                            
+
                             // 1. 現在時刻
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                                 Text(context.date, style: .time)
-                                    .font(.system(size: 96, weight: .thin))
-                                    .monospacedDigit()
+                                    .font(Theme.Typography.clock(96))
+                                    .foregroundStyle(Theme.Palette.textOnDark)
                             }
-                            
-                            // 2. ミッション
-                            VStack(spacing: 20) {
-                                Text("ミッション: 計算を解いてください")
-                                    .font(.title3)
-                                
-                                Text("\(appState.missionNumber1) + \(appState.missionNumber2) = ?")
-                                    .font(.system(size: 48, weight: .bold))
-                                    .monospacedDigit()
-                                
-                                // ★ 私が前回削除してしまった .focused を「復活」させます
-                                TextField("答え", text: $appState.missionAnswerText)
-                                    .font(.system(size: 40, weight: .bold))
-                                    .keyboardType(.numberPad) // 数字キーボード
-                                    .multilineTextAlignment(.center)
-                                    .padding()
-                                    .background(.white.opacity(0.1))
-                                    .cornerRadius(10)
-                                    .frame(maxWidth: 200)
-                                    .focused($isTextFieldFocused) // ★ これを復活
-                            }
-                            
+
                             Spacer()
-                            
-                            // 3. 停止ボタン
+
+                            // 2. 停止ボタン
                             Button(action: {
                                 handleStopButton()
                             }) {
@@ -96,86 +105,58 @@ struct AlarmRingingView: View {
                                     .foregroundStyle(.white)
                                     .cornerRadius(20)
                             }
+                            .buttonStyle(PressSpringButtonStyle())
                             .padding(.horizontal, 40)
                             .padding(.bottom, 20)
-                            
+
                         }
                         .foregroundStyle(.white)
-                        // Viewを揺らすためのオフセット
-                        .offset(x: shakeOffset)
-                        
-                        // ★ (RadialGradient は レイヤー2 に移動済み)
-                        
-                        // ★★★ 修正（ここまで） ★★★
-                        
+
                     }
-                    // 画面が表示された瞬間にキーボードを自動で表示
-        // 画面が表示された瞬間にキーボードを自動で表示
         .onAppear {
             self.originalBrightness = UIScreen.main.brightness
                         // (2) 画面の明るさを最大にする
                         UIScreen.main.brightness = 1.0
-                        
+
                         // (3) フチの点滅アニメーションを開始
                         withAnimation {
                             flashOpacity = 1.0
                         }
-            
-                // 少し待たないとキーボードが表示されないことがある
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    isTextFieldFocused = true
-                    // SwiftUIでTextFieldにフォーカスを当てるのは少し工夫が必要ですが、
-                    // まずはロジックの動作確認を優先します。
-                    // (もしうまく動かなければ、iOS 15以降の @FocusState を使います)
-                }
+                        // 波紋アニメーションと、夜→朝の色変化をスタート
+                        withAnimation { rippleGrow = true }
+                        withAnimation(.linear(duration: 90)) { dawnOpacity = 0.85 }
+                        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.5)
             }
         .onDisappear{
             UIScreen.main.brightness = self.originalBrightness
                     }
+        .onReceive(breathTick) { _ in
+            // 波紋が広がるタイミングに合わせて、心拍を上げない柔らかい触覚を刻む
+            guard appState.isAlarmRinging else { return }
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.4)
+        }
         .onChange(of: appState.isAlarmRinging) {
-            
+
             if !appState.isAlarmRinging {
                 // (2) 点滅アニメーションを停止
                 withAnimation(.easeOut(duration: 0.5)) {
                     flashOpacity = 0.0
+                    rippleGrow = false
+                    dawnOpacity = 0
                 }
                 // (3) 明るさを元に戻す
                 UIScreen.main.brightness = self.originalBrightness
             }
         }
         }
-        
+
         /// 「アラーム停止」ボタンが押されたときの処理
         private func handleStopButton() {
-            if appState.checkMissionAnswer() {
-                // 答えが正しい
-                isTextFieldFocused = false
-                withAnimation(.easeOut(duration: 0.5)) {
-                                flashOpacity = 0.0
-                            }
-                appState.stopAlarm(isPremium: subscriptionManager.isPremium)
-            } else {
-                // 答えが間違い
-                triggerShakeAnimation()
-                appState.missionAnswerText = "" // 入力欄をクリア
-                isTextFieldFocused = false
-                DispatchQueue.main.async {
-                    isTextFieldFocused = true
-                }
+            withAnimation(.easeOut(duration: 0.5)) {
+                flashOpacity = 0.0
             }
-        }
-        
-        /// 答えが間違った時にViewを揺らすアニメーション
-        private func triggerShakeAnimation() {
-            withAnimation(.linear(duration: 0.05).repeatCount(5)) {
-                shakeOffset = -10
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                withAnimation(.linear(duration: 0.05)) {
-                    shakeOffset = 0
-                }
-            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            appState.stopAlarm(isPremium: subscriptionManager.isPremium)
         }
     }
     
@@ -184,9 +165,7 @@ struct AlarmRingingView: View {
         static var previews: some View {
             let previewState = AppState()
             previewState.isAlarmRinging = true
-            previewState.missionNumber1 = 15
-            previewState.missionNumber2 = 7
-            
+
             return AlarmRingingView()
                 .environmentObject(previewState)
                 .environmentObject(SubscriptionManager())

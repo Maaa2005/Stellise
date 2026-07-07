@@ -36,6 +36,9 @@ struct SettingsView: View {
                 Section(header: Text("アラーム設定")) {
                     Toggle("スマートアラーム", isOn: $appState.userData.isSmartAlarmEnabled)
                         .tint(.appAccent)
+                        .onChange(of: appState.userData.isSmartAlarmEnabled) { _, _ in
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
 
                     HStack {
                         Text("センサー感度")
@@ -241,6 +244,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("設定")
             .offerCodeRedemption(isPresented: $isShowingRedeemSheet)
             .onAppear {
@@ -487,7 +491,10 @@ struct TravelModeChip: View {
     
     var body: some View {
         Button(action: {
-            appState.userData.travelMode = mode
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                appState.userData.travelMode = mode
+            }
             appState.save()
             appState.needsScheduleRecalculation = true
         }) {
@@ -506,7 +513,8 @@ struct TravelModeChip: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(isSelected ? Color.appAccent : Color.clear, lineWidth: 2)
             )
+            .scaleEffect(isSelected ? 1.04 : 1.0)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressSpringButtonStyle())
     }
 }

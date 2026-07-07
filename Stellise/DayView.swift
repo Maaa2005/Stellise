@@ -6,7 +6,6 @@ struct DayView: View {
 
     @EnvironmentObject var appState: AppState
     @State private var isShowingReportModal: Bool = false
-    @State private var isShowingAlarmPicker: Bool = false
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @Environment(\.requestReview) private var requestReview
     
@@ -138,33 +137,8 @@ struct DayView: View {
                                 .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.8) : Theme.Palette.textOnDarkMuted)
                                 .shadow(color: appState.isBrightBackground ? .white.opacity(0.5) : .black.opacity(0.35),
                                         radius: appState.isBrightBackground ? 8 : 5, y: 1)
-
-                            // アラームチップ（朝でも明日のアラームを変更できる導線）
-                            Button {
-                                let g = UIImpactFeedbackGenerator(style: .light); g.impactOccurred()
-                                isShowingAlarmPicker = true
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "bell.fill").font(.subheadline)
-                                    Text(String(format: "%02d:%02d", appState.userData.alarmHour, appState.userData.alarmMinute))
-                                        .font(.system(.title3, design: .rounded, weight: .regular))
-                                        .monospacedDigit()
-                                }
-                                .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright : Theme.Palette.textOnDark)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 9)
-                                .background(
-                                    Capsule()
-                                        .fill(.ultraThinMaterial)
-                                        .opacity(0.6)
-                                )
-                                .overlay(Capsule().strokeBorder(.primary.opacity(0.28), lineWidth: 1))
-                                // 透過ガラス。明るい空では濃色文字、暗い空では白文字（ガラスは透過のまま）
-                                .environment(\.colorScheme, appState.isBrightBackground ? .light : .dark)
-                            }
-                            .padding(.top, 16)
                         }
-                        .padding(.vertical, 32)
+                        .padding(.vertical, 24)
                         
                         // タスクリスト
                         if appState.dailyTasks.isEmpty {
@@ -227,55 +201,23 @@ struct DayView: View {
                             Spacer()
                             
                         } else {
-                            List {
-                                ForEach($appState.dailyTasks) { $task in
-                                    if !task.isCompleted {
-                                        // 登場アニメのスタッガー用に一覧中の位置を渡す
-                                        let rowIndex = appState.dailyTasks.firstIndex(where: { $0.id == task.id }) ?? 0
-                                        // ★★★ 修正: TaskRowViewの呼び出しに source を追加 (UI判定用) ★★★
-                                        TaskRowView(task: $task,  onFeedbackGood: { // ★ appStateを追加
-                                            appState.recordFeedback(taskTitle: task.title, isGood: true)
-                                        },
-                                                    onFeedbackBad: {
-                                            appState.recordFeedback(taskTitle: task.title, isGood: false)
-                                        }, index: rowIndex)
-                                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-                                            .listRowSeparator(.hidden)
-                                            .listRowBackground(Color.clear)
-                                            .padding(.vertical, 6)
-                                            // 完了アニメ: 右へスライドしながらフェードアウトして退場
-                                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                                Button {
-                                                    // 完了時の触覚フィードバック（成功通知でより満足感を出す）
-                                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            // コンパクトなタスク一覧。タップで完了、ドラッグで並び替え。
+                            VStack(spacing: 12) {
+                                TaskListView(
+                                    onFeedbackGood: { task in appState.recordFeedback(taskTitle: task.title, isGood: true) },
+                                    onFeedbackBad: { task in appState.recordFeedback(taskTitle: task.title, isGood: false) }
+                                )
+                                .padding(.horizontal, 16)
 
-                                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                                                        task.isCompleted = true
-                                                    }
-                                                } label: {
-                                                    Label("完了", systemImage: "checkmark")
-                                                }
-                                                .tint(Color.appAccent.opacity(0.7)) // 完了スワイプはアクセントのパープルで統一
-                                            }
-                                    }
-                                }
-                                
-                                .onDelete { indexSet in
-                                    appState.dailyTasks.remove(atOffsets: indexSet)
-                                }
-                                Section {
-                                                                    Text("AIは間違えることがあります。重要な情報は確認してください。")
-                                                                        .font(.caption2)
-                                                                        .foregroundStyle(.secondary)
-                                                                        .frame(maxWidth: .infinity, alignment: .center)
-                                                                        .listRowBackground(Color.clear)
-                                                                        .listRowSeparator(.hidden)
-                                                                        .padding(.top, 10)
-                                                                }
+                                Spacer()
+
+                                Text("AIは間違えることがあります。重要な情報は確認してください。")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.bottom, 12)
                             }
-                            .listStyle(.plain)
-                            .scrollContentBackground(.hidden)
+                            .padding(.top, 8)
                         }
                     }
                 }
@@ -301,34 +243,6 @@ struct DayView: View {
         }
         .sheet(isPresented: $isShowingReportModal) {
             SleepReportModalView().presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: $isShowingAlarmPicker, onDismiss: {
-            // 「完了」を押さずスワイプで閉じても、変更済みの時刻を保存してOSに再予約する
-            appState.save()
-            appState.scheduleMorningAlarm()
-        }) {
-            VStack(spacing: 20) {
-                Text("アラーム設定").font(.headline).padding(.top)
-                DatePicker("", selection: Binding(
-                    get: {
-                        let comp = DateComponents(hour: appState.userData.alarmHour, minute: appState.userData.alarmMinute)
-                        return Calendar.current.date(from: comp) ?? Date()
-                    },
-                    set: { newDate in
-                        let comp = Calendar.current.dateComponents([.hour, .minute], from: newDate)
-                        appState.userData.alarmHour = comp.hour ?? appState.userData.alarmHour
-                        appState.userData.alarmMinute = comp.minute ?? appState.userData.alarmMinute
-                    }
-                ), displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel).labelsHidden()
-                Button("完了") {
-                    isShowingAlarmPicker = false
-                    appState.save()
-                    appState.requestNotificationPermission()
-                    appState.scheduleMorningAlarm()
-                }.padding()
-            }
-            .presentationDetents([.medium])
         }
     }
 }

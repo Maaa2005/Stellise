@@ -30,6 +30,9 @@ private struct SeededRandom {
 /// DayView / NightView の `Image(...)` 背景の置き換え先。
 struct Background3DView: View {
     let condition: WeatherCondition
+    /// 夜間なのに時間帯だけで `.night` に丸められず実際の天気(雨/曇り/雪)を出す場合、
+    /// 深夜らしい暗さを保つための追加の暗転オーバーレイ。
+    var nightBoost: Bool = false
 
     var body: some View {
         ZStack {
@@ -49,6 +52,13 @@ struct Background3DView: View {
             WeatherOverlayView(condition: condition)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+
+            // 深夜の雨/曇り/雪: 昼の天気グラデのままだと明るすぎるので一段暗く落とす
+            if nightBoost {
+                Color.black.opacity(0.32)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
         }
     }
 
@@ -152,9 +162,17 @@ private enum SceneBuilder {
         addAmbient(to: scene, condition: condition)
         addKeyLight(to: scene, color: style.lightColor)
         let isNight = condition == .night
-        let body = addCelestialBody(to: scene, style: style,
+
+        let body: SCNNode
+        if condition == .rain {
+            // 雨天は分厚い雲が空を覆っている想定。太陽/月が浮いて見えるのを避け、天体は出さない。
+            body = SCNNode()
+            scene.rootNode.addChildNode(body)
+        } else {
+            body = addCelestialBody(to: scene, style: style,
                                     position: celestialPosition(hour: hour, isNight: isNight))
-        if style.showStars { addStars(to: scene) }
+            if style.showStars { addStars(to: scene) }
+        }
 
         return Built(scene: scene, body: body)
     }
@@ -175,7 +193,11 @@ private enum SceneBuilder {
         let angle = p * Double.pi            // 0..π の半円弧
         // やや左寄りの弧。右上は設定歯車を置くので天体を被らせない（朝日も左上が映える）。
         let x = Float(-cos(angle)) * 1.85 - 0.55 // 左端-2.4 → 南中-0.55 → 右1.3
-        let y = Float(sin(angle)) * 2.6 + 1.6    // 出入り=1.6, 南中=4.2（常に画面内）
+        // 夜の月は中央の時計/リングと重ならないよう、出入りでも画面上部に留まる高めの平たい弧。
+        // 昼の太陽は「地平線近くから昇る/沈む」演出を保つため元の低い弧のまま。
+        let y = isNight
+            ? Float(sin(angle)) * 1.3 + 2.8      // 月: 出入り=2.8, 南中=4.1（画面上部・上端に切れない）
+            : Float(sin(angle)) * 2.6 + 1.6      // 太陽: 出入り=1.6, 南中=4.2
         return SCNVector3(x, y, -0.5)
     }
 
@@ -582,7 +604,7 @@ private struct CloudLayer: View {
         Cloud(x: 0.58, y: 0.30, scale: 0.92, speed: 0.010, aspect: 0.95, seed: 66),
         Cloud(x: 0.32, y: 0.39, scale: 0.64, speed: 0.018, aspect: 1.45, seed: 77),
     ]
-    // 雨用の追加雲。上部の隙間を厚く埋め、中ほどまでで止める（下方には足さない）。
+    // 雨用の追加雲。上部の隙間を厚く埋め、さらに画面下半分まで伸ばして空全体を覆う。
     private let denseClouds: [Cloud] = [
         Cloud(x: 0.40, y: 0.03, scale: 0.9,  speed: 0.013, aspect: 1.5,  seed: 88),
         Cloud(x: 0.78, y: 0.10, scale: 1.0,  speed: 0.009, aspect: 1.25, seed: 99),
@@ -591,6 +613,12 @@ private struct CloudLayer: View {
         Cloud(x: 0.84, y: 0.27, scale: 0.8,  speed: 0.019, aspect: 1.1,  seed: 133),
         Cloud(x: 0.16, y: 0.33, scale: 0.95, speed: 0.011, aspect: 1.55, seed: 144),
         Cloud(x: 0.70, y: 0.43, scale: 0.7,  speed: 0.015, aspect: 0.8,  seed: 155),
+        Cloud(x: 0.28, y: 0.52, scale: 0.85, speed: 0.014, aspect: 1.4,  seed: 166),
+        Cloud(x: 0.62, y: 0.58, scale: 0.65, speed: 0.020, aspect: 0.9,  seed: 177),
+        Cloud(x: 0.92, y: 0.50, scale: 0.6,  speed: 0.017, aspect: 1.1,  seed: 188),
+        Cloud(x: 0.08, y: 0.62, scale: 0.7,  speed: 0.012, aspect: 1.3,  seed: 199),
+        Cloud(x: 0.46, y: 0.68, scale: 0.55, speed: 0.018, aspect: 0.8,  seed: 210),
+        Cloud(x: 0.76, y: 0.72, scale: 0.6,  speed: 0.010, aspect: 1.2,  seed: 221),
     ]
     private var clouds: [Cloud] { dense ? baseClouds + denseClouds : baseClouds }
 
@@ -598,12 +626,23 @@ private struct CloudLayer: View {
         TimelineView(.animation) { tl in
             Canvas { ctx, size in
                 let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
+
+                // 雨は空全体を厚い雲が覆っている想定。個々の雲塊だけだと隙間がスカスカに
+                // 見えるので、先に画面全体を薄い曇りベースで塗って隙間をなくす。
+                if dense {
+                    let washColor = dark ? Color(white: 0.42) : Color(white: 0.85)
+                    ctx.fill(Path(CGRect(origin: .zero, size: size)),
+                              with: .color(washColor.opacity(0.4)))
+                }
+
                 for cloud in clouds {
                     // 一方向にゆっくり流して画面外で折り返す（折返しはオフスクリーンで起こる）
                     let frac = (cloud.x + t * cloud.speed).truncatingRemainder(dividingBy: 1.0)
                     let cx = frac * (size.width * 1.6) - size.width * 0.3
-                    // 下にいくほど薄くフェード（上=濃い、下=淡い）。配置の上寄せと合わせて密度勾配を作る。
-                    let fade = max(0.28, min(1.0, 1.18 - cloud.y * 1.7))
+                    // 下にいくほど薄くフェード（上=濃い、下=淡い）。ただし雨は空全体を覆うため
+                    // 下限を高めに保ち、画面下部まで雲が透けすぎないようにする。
+                    let minFade: CGFloat = dense ? 0.55 : 0.28
+                    let fade = max(minFade, min(1.0, 1.18 - cloud.y * 1.0))
                     ctx.drawLayer { layer in
                         layer.opacity = fade
                         drawCloud(layer, size: size, cx: cx, cy: cloud.y * size.height,

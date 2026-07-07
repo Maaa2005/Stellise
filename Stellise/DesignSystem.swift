@@ -183,3 +183,13 @@ extension View {
         modifier(GlassCard(cornerRadius: cornerRadius))
     }
 }
+
+// MARK: - 押した時に少し縮み、離すとポンと戻るボタン（Flighty等の Spring 押下演出）
+
+struct PressSpringButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}

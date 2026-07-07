@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import FirebaseCore
 import FirebaseAuth
 import AlarmKit
@@ -32,6 +33,10 @@ struct StelliseApp: App {
     
     @State private var isLoading: Bool = true
     @State private var homePage: Int = 1   // 0=睡眠データ（右スワイプで表示）, 1=ホーム
+    // 背景コンディション用の現在時。アプリを開きっぱなしでも時間帯の境界(夕暮れ・夜など)で
+    // 背景が切り替わるよう、毎分チェックして「時」が変わった時だけ更新する。
+    @State private var currentHour: Int = Calendar.current.component(.hour, from: Date())
+    private let hourTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
@@ -65,7 +70,7 @@ struct StelliseApp: App {
 
                             // 時間駆動ホーム。背景は1枚を共有（朝⇄夜で再生成されず連続）。
                             ZStack {
-                                Background3DView(condition: homeCondition)
+                                Background3DView(condition: homeCondition, nightBoost: isTrueNightWeather)
                                     .ignoresSafeArea()
                                 Group {
                                     if appState.selectedTab == 1 {
@@ -124,8 +129,15 @@ struct StelliseApp: App {
                     }
                 }
             }
+            .onReceive(hourTick) { date in
+                let hour = Calendar.current.component(.hour, from: date)
+                guard hour != currentHour else { return }
+                currentHour = hour   // 背景コンディション(homeCondition)を再評価させる
+                checkTimeAndSwitchTab()
+            }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
+                    currentHour = Calendar.current.component(.hour, from: Date())
                     checkTimeAndSwitchTab()
                     handlePendingAlarmKitAlarm()
                     Task {
@@ -139,13 +151,28 @@ struct StelliseApp: App {
     
     /// 共有背景のコンディション。時刻＋天気から導出し、朝晩の切替に薄明(dawn/dusk)を挟む。
     private var homeCondition: WeatherCondition {
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = currentHour
         let weather = WeatherCondition.from(backgroundImageName: appState.backgroundImageName)
         switch hour {
         case 5..<7:   return .dawn                                  // 夜明け前
         case 7..<17:  return weather == .night ? .clear : weather   // 日中は天気連動
         case 17..<19: return .dusk                                  // 夕暮れ
-        default:      return .night
+        default:
+            // 深夜も「晴れ」に固定せず、雨/曇り/雪ならそのまま反映する（nightBoostで暗さを補う）
+            switch weather {
+            case .rain, .cloudy, .snow: return weather
+            default: return .night
+            }
+        }
+    }
+
+    /// 深夜帯なのに天気コンディション(雨/曇り/雪)を出している場合 true。
+    /// Background3DView 側でさらに暗く落とすトリガーに使う。
+    private var isTrueNightWeather: Bool {
+        guard !(5..<19).contains(currentHour) else { return false }
+        switch homeCondition {
+        case .rain, .cloudy, .snow: return true
+        default: return false
         }
     }
 
@@ -158,7 +185,6 @@ struct StelliseApp: App {
             // 朝アラーム または スヌーズガードアラームが鳴動中なら画面を立ち上げる
             let triggerIDs: Set<UUID> = [appState.morningAlarmID, appState.snoozeGuardAlarmID]
             if alarms.first(where: { triggerIDs.contains($0.id) && $0.state == .alerting }) != nil {
-                appState.generateNewMission()
                 appState.isAlarmFinished = false
                 appState.isAlarmRinging = true
                 appState.startAlarmEffects()
@@ -172,7 +198,7 @@ struct StelliseApp: App {
     private func checkTimeAndSwitchTab() {
         // アラーム中やオンボーディング中は勝手に切り替えない
         if appState.isAlarmRinging || appState.needsOnboarding { return }
-        
+
         let hour = Calendar.current.component(.hour, from: Date())
 
         // 朝 4:00 〜 夕方 18:00 は「朝画面」
