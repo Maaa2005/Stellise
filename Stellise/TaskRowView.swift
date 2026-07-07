@@ -63,9 +63,12 @@ struct TaskRowView: View {
                             // 実行中 (残り1分未満、秒単位で焦らせる)
                             let seconds = Int(remainingSeconds)
                             return String(format: "0:%02d", seconds)
-                        } else {
-                            // 期限切れ
+                        } else if remainingSeconds > -7200 {
+                            // 期限切れ（2時間以内）
                             return "遅刻"
+                        } else {
+                            // 2時間超過 → stale なタスク（表示は元の時間を維持）
+                            return task.duration
                         }
                     }()
                     

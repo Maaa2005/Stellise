@@ -2,3 +2,6 @@ GoogleService-Info.plist
 .DS_Store
 Pods/
 build/
+*.xcuserstate
+xcuserdata/
+サウンド素材/

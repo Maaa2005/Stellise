@@ -7,6 +7,8 @@ struct CalendarLinkView: View {
     @State private var isAgreed = false
     @State private var isShowingPrivacyPolicy = false
     @State private var isShowingTerms = false
+    @State private var navigateNext = false
+    @State private var isRequestingAccess = false
     
     var body: some View {
         VStack {
@@ -63,9 +65,25 @@ struct CalendarLinkView: View {
                 .padding(.vertical, 20)
                 
                 // --- 連携ボタン ---
-                // --- 連携ボタン ---
-                                NavigationLink(destination: PremiumIntroView()) {
+                // ※NavigationLink+simultaneousGestureだと権限ダイアログと画面遷移が同時に走り、
+                //   課金画面の上にポップアップが被さる。「許可に応答してから遷移」に変更。
+                                Button {
+                                    guard !isRequestingAccess else { return }
+                                    isRequestingAccess = true
+                                    Task {
+                                        let granted = await appState.calendarManager.requestAccess()
+                                        await MainActor.run {
+                                            appState.userData.calendarLinked = granted
+                                            appState.save()
+                                            isRequestingAccess = false
+                                            navigateNext = true // ダイアログ応答後に遷移
+                                        }
+                                    }
+                                } label: {
                                     HStack {
+                                        if isRequestingAccess {
+                                            ProgressView().tint(.white)
+                                        }
                                         Text("次へ")
                                     }
                                     .fontWeight(.semibold)
@@ -74,20 +92,24 @@ struct CalendarLinkView: View {
                                     .foregroundStyle(isAgreed ? .white : .white.opacity(0.6))
                                     .cornerRadius(10)
                                 }
-                                .disabled(!isAgreed) // 同意していない場合はボタンを無効化
-                                .simultaneousGesture(TapGesture().onEnded {
-                                    // ★ 遷移する瞬間にカレンダーの許可をリクエストする
-                                    Task {
-                                        let granted = await appState.calendarManager.requestAccess()
-                                        await MainActor.run {
-                                            appState.userData.calendarLinked = granted
-                                            appState.save()
-                                        }
-                                    }
-                                })
-                                
+                                .disabled(!isAgreed || isRequestingAccess)
+
                                 // --- スキップボタン ---
-                               
+                                // カレンダー連携を強制しない（権限ダイアログなしで次へ進める）。
+                                // 連携は後から設定画面でいつでも許可できる。
+                                Button {
+                                    appState.userData.calendarLinked = false
+                                    appState.save()
+                                    navigateNext = true
+                                } label: {
+                                    Text("今は連携しない")
+                                        .font(.callout)
+                                        .foregroundStyle(isAgreed ? .secondary : Color(.systemGray4))
+                                }
+                                .disabled(!isAgreed || isRequestingAccess) // 規約同意は必須
+            }
+            .navigationDestination(isPresented: $navigateNext) {
+                PremiumIntroView()
             }
             .padding()
             .navigationBarBackButtonHidden(true)

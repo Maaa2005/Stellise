@@ -109,7 +109,15 @@ class SoundAnalyzer: NSObject, ObservableObject {
             
             do {
                 try await loadModelAndLabels()
-                
+
+                // 録音を含むセッションを自前で設定（AppState起動時の一括設定は廃止したため）
+                try AVAudioSession.sharedInstance().setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothHFP]
+                )
+                try AVAudioSession.sharedInstance().setActive(true)
+
                 // エンジンの初期化
                 audioEngine = AVAudioEngine()
                 guard let audioEngine = audioEngine else { return }

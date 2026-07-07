@@ -7,7 +7,8 @@ struct NightView: View {
     
     @State private var isShowingTimePicker = false
     @State private var now = Date()
-    @State private var selectedTimerDuration: TimeInterval? = nil // スリープタイマー (オフ)
+    @State private var selectedTimerDuration: TimeInterval? = nil
+    @State private var isShowingPremium = false
     
     var body: some View {
         ZStack {
@@ -23,7 +24,9 @@ struct NightView: View {
                 
                 // --- 中央: 時間表示 (現在時刻メイン) --- (維持)
                 VStack(spacing: 12) {
-                    Text("おやすみなさい、\(appState.userData.userName)さん")
+                    Text(appState.userData.userName.isEmpty
+                         ? "おやすみなさい"
+                         : "おやすみなさい、\(appState.userData.userName)さん")
                         .font(.system(.title3, design: .default, weight: .thin))
                         .tracking(2)
                         .foregroundStyle(.white.opacity(0.9))
@@ -63,79 +66,9 @@ struct NightView: View {
                 Spacer()
                 
                 // --- 下部: 睡眠環境音セクション ---
-                // ★★★ 修正: ミッションセクションを削除し、睡眠音セクションのみを中央寄せにする ★★★
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "moon.zzz.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                        Text("睡眠環境音")
-                            .font(.system(.callout, design: .default, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    
-                    HStack(spacing: 12) {
-                        // 再生/停止
-                        Button(action: {
-                            appState.sleepSoundManager.togglePlay(premium: subscriptionManager.isPremium, timerDuration: selectedTimerDuration)
-                        }) {
-                            Image(systemName: appState.sleepSoundManager.isPlaying ? "stop.fill" : "play.fill")
-                                .font(.callout)
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(width: 36, height: 36)
-                                .background(Color.white.opacity(0.1))
-                                .clipShape(Circle())
-                        }
-                        
-                        // 音の種類
-                        Menu {
-                            ForEach(SleepSoundManager.SleepSound.allCases) { sound in
-                                Button(sound.rawValue) {
-                                    appState.sleepSoundManager.selectedSound = sound
-                                    if appState.sleepSoundManager.isPlaying {
-                                        appState.sleepSoundManager.playSound(premium: subscriptionManager.isPremium, timerDuration: selectedTimerDuration)
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text(appState.sleepSoundManager.selectedSound.rawValue)
-                                    .font(.caption)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                        
-                        Spacer(minLength: 0)
-                        
-                        // タイマー
-                        Menu {
-                            Button("オフ", action: { selectedTimerDuration = nil })
-                            Button("15分", action: { selectedTimerDuration = 15 * 60 })
-                            Button("30分", action: { selectedTimerDuration = 30 * 60 })
-                            Button("1時間", action: { selectedTimerDuration = 60 * 60 })
-                        } label: {
-                            Image(systemName: "timer")
-                                .font(.callout)
-                                .foregroundStyle(.white.opacity(selectedTimerDuration == nil ? 0.3 : 0.6))
-                                .frame(width: 36, height: 36)
-                                .background(Color.white.opacity(0.1))
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-                .padding(20)
-                .background(.ultraThinMaterial)
-                .cornerRadius(24)
-                .padding(.horizontal, 24) // セクション全体の左右余白
-                .padding(.bottom, 24)     // 下部の余白
+                sleepSoundSection
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
             } // VStackここまで
             
             // ★★★ 追加: うつ伏せブラックアウト機能 (省電力対応) ★★★
@@ -146,10 +79,8 @@ struct NightView: View {
             now = Date()
             appState.isAlarmFinished = false
             startSleepMonitoring()
+            appState.requestNotificationPermission() // AlarmKit 権限ポップアップ（未許可時のみ表示）
             appState.scheduleMorningAlarm()
-            
-            // ★★★ 追加: 画面のオートロック(自動スリープ)を無効化 ★★★
-            // アラームアプリとして、途中で画面が勝手に消えるのを防ぎます。
             UIApplication.shared.isIdleTimerDisabled = true
         }
         .onDisappear {
@@ -158,7 +89,11 @@ struct NightView: View {
             // ★★★ 追加: 画面を離れる時はオートロックを元の設定(有効)に戻す ★★★
             UIApplication.shared.isIdleTimerDisabled = false
         }
-        .sheet(isPresented: $isShowingTimePicker) {
+        .sheet(isPresented: $isShowingTimePicker, onDismiss: {
+            // 「完了」を押さずスワイプで閉じても、変更済みの時刻を保存してOSに再予約する
+            appState.save()
+            appState.scheduleMorningAlarm()
+        }) {
             // 時刻ピッカー (維持)
             VStack(spacing: 20) {
                 Text("アラーム設定").font(.headline).padding(.top)
@@ -185,9 +120,8 @@ struct NightView: View {
             }
             .presentationDetents([.medium])
         }
-        .fullScreenCover(isPresented: $appState.isAlarmRinging) {
-            AlarmRingingView() // アラーム画面 (維持)
-        }
+        // ※アラーム画面の表示は StelliseApp 側 (zIndex 999 のオーバーレイ) に一本化。
+        //   ここでも fullScreenCover を出すと二重表示になり、画面輝度の保存/復元が壊れる。
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { nowTime in
             // タイマー監視・スマートアラーム判定ロジック (維持)
             self.now = nowTime
@@ -223,11 +157,159 @@ struct NightView: View {
     } // body
     
     // ==========================================
+    // MARK: - 睡眠環境音セクション
+    // ==========================================
+
+    @ViewBuilder
+    private var sleepSoundSection: some View {
+        if subscriptionManager.isPremium {
+            // Pro ユーザー: フル機能
+            VStack(alignment: .leading, spacing: 12) {
+                soundSectionHeader
+
+                HStack(spacing: 12) {
+                    // 再生 / 一時停止
+                    Button {
+                        appState.sleepSoundManager.togglePlay(timerDuration: selectedTimerDuration)
+                    } label: {
+                        Image(systemName: appState.sleepSoundManager.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+
+                    // 音の種類
+                    Menu {
+                        ForEach(SleepSoundManager.SleepSound.allCases) { sound in
+                            Button(sound.rawValue) {
+                                appState.sleepSoundManager.selectedSound = sound
+                                if appState.sleepSoundManager.isPlaying {
+                                    appState.sleepSoundManager.playSound(timerDuration: selectedTimerDuration)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(appState.sleepSoundManager.selectedSound.rawValue)
+                                .font(.caption)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.12))
+                        .cornerRadius(12)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    // タイマー残り表示
+                    if let remaining = appState.sleepSoundManager.remainingTime {
+                        Text(formatRemaining(remaining))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+
+                    // スリープタイマー
+                    Menu {
+                        Button("オフ") { selectedTimerDuration = nil }
+                        Button("15分") { selectedTimerDuration = 15 * 60 }
+                        Button("30分") { selectedTimerDuration = 30 * 60 }
+                        Button("1時間") { selectedTimerDuration = 60 * 60 }
+                    } label: {
+                        Image(systemName: "timer")
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(selectedTimerDuration == nil ? 0.3 : 0.7))
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+            .padding(20)
+            .background(.ultraThinMaterial)
+            .cornerRadius(24)
+        } else {
+            // 非 Pro ユーザー: ロックオーバーレイ
+            ZStack {
+                // コンテンツ（薄く表示）
+                VStack(alignment: .leading, spacing: 12) {
+                    soundSectionHeader
+
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 36, height: 36)
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 80, height: 32)
+                        Spacer()
+                        Circle()
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 36, height: 36)
+                    }
+                }
+                .padding(20)
+                .opacity(0.35)
+                .blur(radius: 2)
+
+                // ロックオーバーレイ
+                Button {
+                    isShowingPremium = true
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text("睡眠環境音は Pro 限定")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text("タップしてアップグレード")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                }
+                .buttonStyle(.plain)
+            }
+            .background(.ultraThinMaterial)
+            .cornerRadius(24)
+            .sheet(isPresented: $isShowingPremium) {
+                PremiumIntroView()
+                    .environmentObject(subscriptionManager)
+                    .environmentObject(appState)
+            }
+        }
+    }
+
+    private var soundSectionHeader: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+            Text("睡眠環境音")
+                .font(.system(.callout, design: .default, weight: .medium))
+                .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
+    private func formatRemaining(_ seconds: TimeInterval) -> String {
+        let m = Int(seconds) / 60
+        let s = Int(seconds) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    // ==========================================
     // MARK: - 内部ロジック
     // ==========================================
     private func startSleepMonitoring() {
         if !appState.sensorManager.isDetecting {
             print("🌙 NightView: 睡眠・音声センサー起動")
+            appState.startNightSession() // 睡眠レポート用の集計を開始
             appState.sensorManager.startDetection(threshold: appState.movementThreshold)
             Task { await appState.soundAnalyzer.startAnalyzing() }
             appState.smartAlarmTriggered = false
