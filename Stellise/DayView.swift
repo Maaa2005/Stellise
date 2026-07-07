@@ -19,6 +19,15 @@ struct DayView: View {
             return formatter.string(from: Date())
         }
 
+    /// 昨夜の睡眠スコアに応じた朝の一言。低スコアでも警告・ダメ出しはしない。
+    private var sleepMoodLine: String {
+        switch appState.lastSleepScore {
+        case 80...: return "ぐっすり眠れました。今日は攻めていける日です"
+        case 60..<80: return "まずまずの睡眠。いつものペースでいきましょう"
+        default: return "少し寝不足気味。今日は無理せずいきましょう"
+        }
+    }
+
     /// 全タスク完了の瞬間にApp Storeレビューを依頼する（30日に1回まで）
     private func requestReviewIfAppropriate() {
         let thirtyDays: TimeInterval = 30 * 24 * 3600
@@ -98,7 +107,8 @@ struct DayView: View {
                             .foregroundColor(.white)
                             .padding(.vertical, 12)
                             .frame(maxWidth: .infinity)
-                            .background(Color.red.opacity(0.85))
+                            // 真っ赤は朝から不安を煽るので、遅刻警告と同じ暖色オレンジで統一
+                            .background(Color(red: 1.0, green: 0.55, blue: 0.15).opacity(0.9))
                         }
                         
                         // ヘッダー
@@ -137,6 +147,15 @@ struct DayView: View {
                                 .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.8) : Theme.Palette.textOnDarkMuted)
                                 .shadow(color: appState.isBrightBackground ? .white.opacity(0.5) : .black.opacity(0.35),
                                         radius: appState.isBrightBackground ? 8 : 5, y: 1)
+
+                            // 昨夜の睡眠に寄り添う一言。スコアが低くても責めない（常にポジティブ）
+                            if appState.lastSleepScore > 0 {
+                                Text(sleepMoodLine)
+                                    .font(.system(.footnote, design: .rounded))
+                                    .foregroundStyle(appState.isBrightBackground ? Theme.Palette.textOnBright.opacity(0.65) : Theme.Palette.textOnDarkMuted.opacity(0.8))
+                                    .shadow(color: appState.isBrightBackground ? .white.opacity(0.4) : .black.opacity(0.3), radius: 4, y: 1)
+                                    .padding(.top, 8)
+                            }
                         }
                         .padding(.vertical, 24)
                         

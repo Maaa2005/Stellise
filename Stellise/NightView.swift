@@ -11,10 +11,25 @@ struct NightView: View {
     @State private var isShowingPremium = false
     @State private var hasAppeared = false
     @State private var ringProgress: Double = 0
+    /// 段階的覚醒: アラーム30分前から0→1へ上がり、夜空に朝焼けをゆっくり滲ませる
+    @State private var preDawnProgress: Double = 0
 
     var body: some View {
         ZStack {
             // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
+
+            // 段階的覚醒(ウェイクアップライト): アラーム30分前から朝焼けの色を少しずつ滲ませ、
+            // 鳴動時の AlarmRingingView の日の出演出へ自然につなぐ
+            if preDawnProgress > 0 {
+                LinearGradient(
+                    colors: [Color(hex: "#262049"), Color(hex: "#6E4A78"), Color(hex: "#E8A878")],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .opacity(preDawnProgress * 0.5)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .animation(.linear(duration: 1.0), value: preDawnProgress)
+            }
 
             // --- コンテンツ ---
             VStack(spacing: 0) {
@@ -30,7 +45,8 @@ struct NightView: View {
                          : "おやすみなさい、\(appState.userData.userName)さん")
                         .font(.system(.title3, design: .default, weight: .thin))
                         .tracking(2)
-                        .foregroundStyle(.white.opacity(0.9))
+                        // 就寝前は純白を避け、色温度の低い温白で目への刺激を抑える
+                        .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.92))
                         .shadow(color: .black.opacity(0.3), radius: 4)
                         .opacity(hasAppeared ? 1 : 0)
                         .offset(y: hasAppeared ? 0 : 8)
@@ -57,7 +73,7 @@ struct NightView: View {
                         .background(Color.white.opacity(0.15))
                         .clipShape(Capsule())
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.Palette.nightWarmText)
                     .padding(.top, 4)
                     .opacity(hasAppeared ? 1 : 0)
                 }
@@ -138,6 +154,10 @@ struct NightView: View {
             let targetDate = alarmDate < nowTime.addingTimeInterval(-60) ? alarmDate.addingTimeInterval(86400) : alarmDate
             let timeUntilAlarm = targetDate.timeIntervalSince(nowTime)
             ringProgress = sleepProgress(now: nowTime, wake: targetDate)
+            // アラーム30分前から朝焼けを滲ませる（アラームOFF時は出さない）
+            preDawnProgress = appState.userData.isAlarmActive
+                ? min(1, max(0, 1 - timeUntilAlarm / 1800))
+                : 0
 
             // スマートアラーム窓判定 (30分前からマイクON)
             if timeUntilAlarm <= 1800 && timeUntilAlarm > 0 {
@@ -183,10 +203,10 @@ struct NightView: View {
             VStack(spacing: 4) {
                 Text("あと")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.65))
                 Text(remainingUntilAlarmText)
                     .font(Theme.Typography.clock(52))
-                    .foregroundStyle(Theme.Palette.textOnDark)
+                    .foregroundStyle(Theme.Palette.nightWarmText)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
             }

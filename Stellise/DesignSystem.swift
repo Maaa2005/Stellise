@@ -66,6 +66,9 @@ enum Theme {
         static let textOnDark = Color.white
         static let textOnDarkMuted = Color.white.opacity(0.8)
         static let textOnBright = Color(hex: "#1B1B3A") // 明背景（晴れ等）は濃紺文字
+        // 就寝前画面用の温白。純白はブルーライト成分が強く入眠を妨げるため、
+        // 夜画面のテキスト/アイコンは色温度を落としたこの色を使う。
+        static let nightWarmText = Color(hex: "#F2E7D5")
     }
 
     // MARK: 角丸
