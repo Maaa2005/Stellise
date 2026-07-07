@@ -1,76 +1,84 @@
 {
-  "appPolicies" : {
-    "eula" : "",
-    "policies" : [
+  "appPolicies": {
+    "eula": "",
+    "policies": [
       {
-        "locale" : "en_US",
-        "policyText" : "",
-        "policyURL" : ""
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
       }
     ]
   },
-  "identifier" : "BE365953",
-  "nonRenewingSubscriptions" : [
-
-  ],
-  "products" : [
-
-  ],
-  "settings" : {
-    "_askToBuyEnabled" : false,
-    "_billingGracePeriodEnabled" : false,
-    "_billingIssuesEnabled" : false,
-    "_disableDialogs" : false,
-    "_failTransactionsEnabled" : false,
-    "_locale" : "ja",
-    "_renewalBillingIssuesEnabled" : false,
-    "_storefront" : "JPN",
-    "_storeKitErrors" : [
-
-    ],
-    "_timeRate" : 0
+  "identifier": "BE365953",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_askToBuyEnabled": false,
+    "_billingGracePeriodEnabled": false,
+    "_billingIssuesEnabled": false,
+    "_disableDialogs": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "ja",
+    "_renewalBillingIssuesEnabled": false,
+    "_storefront": "JPN",
+    "_storeKitErrors": [],
+    "_timeRate": 0
   },
-  "subscriptionGroups" : [
+  "subscriptionGroups": [
     {
-      "id" : "AC9C97E5",
-      "localizations" : [
-
-      ],
-      "name" : "Premium",
-      "subscriptions" : [
+      "id": "AC9C97E5",
+      "localizations": [],
+      "name": "Premium",
+      "subscriptions": [
         {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "500",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "9B5FC80D",
-          "introductoryOffer" : null,
-          "localizations" : [
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "300",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "9B5FC80D",
+          "introductoryOffer": null,
+          "localizations": [
             {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
+              "description": "AIタスク提案・交通監視・環境音",
+              "displayName": "Stellise Pro（月額）",
+              "locale": "ja"
             }
           ],
-          "productID" : "com.yuutokiwai.Stellise.pro.monthly.v1",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Stellise Pro",
-          "subscriptionGroupID" : "AC9C97E5",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
+          "productID": "com.yuutokiwai.Stellise.pro.monthly.v1",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Stellise Pro Monthly",
+          "subscriptionGroupID": "AC9C97E5",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "3000",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "9B5FC80E",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "AIタスク提案・交通監視・環境音（年額）",
+              "displayName": "Stellise Pro（年額）",
+              "locale": "ja"
+            }
+          ],
+          "productID": "com.yuutokiwai.Stellise.pro.yearly.v1",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Stellise Pro Yearly",
+          "subscriptionGroupID": "AC9C97E5",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
         }
       ]
     }
   ],
-  "version" : {
-    "major" : 4,
-    "minor" : 0
+  "version": {
+    "major": 4,
+    "minor": 0
   }
 }

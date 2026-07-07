@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 import CoreLocation
 import StoreKit
 import AlarmKit
@@ -128,10 +129,18 @@ struct SettingsView: View {
                         isShowingRedeemSheet = true
                     }) {
                         HStack {
-                            
+
                             Text("プロモーションコードを入力")
                                 .foregroundStyle(.primary)
                         }
+                    }
+
+                    // 機種変更・再インストール時の復元導線（審査ガイドライン3.1.1でも必須）
+                    Button(action: {
+                        Task { await subscriptionManager.restore() }
+                    }) {
+                        Text("購入を復元")
+                            .foregroundStyle(.primary)
                     }
                 }
                 
@@ -196,14 +205,36 @@ struct SettingsView: View {
                 }
                 #endif
                 
-                // --- 5. アカウント ---
-                Section {
-                    Button("ログアウト", role: .destructive) {
-                        try? FirebaseAuth.Auth.auth().signOut()
-                        appState.needsOnboarding = true
+                // --- 6. クレジット ---
+                // OtoLogic音素材は CC BY 4.0（商用可・クレジット表記必須）。
+                // この表記がライセンス上の必須条件なので削除しないこと。
+                Section(
+                    header: Text("クレジット"),
+                    footer: Text("アラーム音・環境音には OtoLogic の音素材を使用しています。")
+                ) {
+                    Link(destination: URL(string: "https://otologic.jp")!) {
+                        HStack {
+                            Text("サウンド素材: OtoLogic")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Link(destination: URL(string: "https://creativecommons.org/licenses/by/4.0/deed.ja")!) {
+                        HStack {
+                            Text("ライセンス: CC BY 4.0")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                
+
+                // --- 7. アカウント ---
+                // ※「ログアウト」は撤去: 本アプリは匿名アカウントのみでサインイン機能が無いため、
+                //   ログアウトは意味を持たず（データが孤立するだけ）誤解を招く。
                 Section(footer: Text("アカウントを削除すると、これまでの睡眠データや設定がすべて消去され、復元することはできません。")) {
                     Button("アカウントを完全に削除", role: .destructive) {
                         showDeleteAlert = true
@@ -383,10 +414,22 @@ struct SettingsView: View {
         }
     }
 
+    // ストアフロントの実価格を表示（ハードコードだと海外ストアや価格改定でズレるため）
+    private var displayPriceText: String {
+        let parts = subscriptionManager.products
+            .sorted { $0.price < $1.price }
+            .map { p -> String in
+                p.subscription?.subscriptionPeriod.unit == .year
+                    ? "\(p.displayPrice) / 年"
+                    : "\(p.displayPrice) / 月"
+            }
+        return parts.isEmpty ? "App Store 表示価格" : parts.joined(separator: "・")
+    }
+
     private var premiumLegalFooter: some View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("プラン名称: Stellise Pro（月額）")
-                Text("価格と期間: ¥500 / 月")
+                Text("価格と期間: \(displayPriceText)")
                 // ★追加: 自動更新の注意書き
                 Text("お支払いはiTunesアカウントに請求されます。期間終了の24時間前までに解約しない限り自動更新されます。")
                 
@@ -411,12 +454,20 @@ struct SettingsView: View {
         }
 
     private func deleteAccount() {
-        guard let user = FirebaseAuth.Auth.auth().currentUser else { return }
-        
-        user.delete { error in
-            if let error = error {
-                print("❌ アカウント削除エラー: \(error.localizedDescription)")
-            } else {
+        Task {
+            // 1. サーバ側データ（Firestore）を削除
+            if let user = Auth.auth().currentUser {
+                try? await Firestore.firestore().collection("users").document(user.uid).delete()
+                // 2. 認証アカウント（匿名）を削除
+                do {
+                    try await user.delete()
+                } catch {
+                    print("❌ アカウント削除エラー: \(error.localizedDescription)")
+                }
+            }
+            // 3. 端末内データを削除してオンボーディングへ戻す
+            await MainActor.run {
+                appState.resetAllUserData()
                 appState.needsOnboarding = true
             }
         }

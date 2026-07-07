@@ -4,8 +4,8 @@ import SwiftUI
 // クラスの外側（トップレベル）に定義
 struct UserData: Codable, Sendable {
     var userName: String = ""
-    var userHeight: String = ""
-    var userWeight: String = ""
+    // ※身長・体重の入力は廃止（睡眠解析ロジックで未使用だったため。
+    //   過去バージョンの保存JSONに残っていてもデコード時に無視されるだけで安全）
     var bedFirmness: Double = 50.0
     var movementThreshold: Double = 1.9
     var homeAddress: String = ""
@@ -22,6 +22,8 @@ struct UserData: Codable, Sendable {
     var calendarLinked: Bool = false
     var isSmartAlarmEnabled: Bool = true
     var feedbackHistory: [TaskFeedback] = []
+    // Optionalなので過去バージョンの保存データもそのまま読める
+    var lastReviewRequestDate: Date? = nil
 }
 
 // ★ 修正: 'Equatable' を追加しました

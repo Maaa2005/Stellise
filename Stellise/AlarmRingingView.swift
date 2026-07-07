@@ -9,8 +9,9 @@
 import SwiftUI
 
 struct AlarmRingingView: View {
-    
+
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     // 答えが間違っていた時にViewを揺らすためのState
     @State private var shakeOffset: CGFloat = 0
@@ -152,7 +153,7 @@ struct AlarmRingingView: View {
                 withAnimation(.easeOut(duration: 0.5)) {
                                 flashOpacity = 0.0
                             }
-                appState.stopAlarm()
+                appState.stopAlarm(isPremium: subscriptionManager.isPremium)
             } else {
                 // 答えが間違い
                 triggerShakeAnimation()
@@ -188,6 +189,7 @@ struct AlarmRingingView: View {
             
             return AlarmRingingView()
                 .environmentObject(previewState)
+                .environmentObject(SubscriptionManager())
         }
     }
 
