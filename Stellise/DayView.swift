@@ -215,6 +215,7 @@ struct DayView: View {
                             .padding(40)
                             .background(.ultraThinMaterial)
                             .cornerRadius(32)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
                             // 「準備完了」= ユーザー体験のピークでレビューを依頼（30日に1回まで）
                             .onAppear { requestReviewIfAppropriate() }
                             Spacer()
@@ -239,9 +240,10 @@ struct DayView: View {
                             .padding(.top, 8)
                         }
                     }
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: allTasksCompleted)
                 }
             }
-            
+
             .onAppear {
             // タスクは自動生成しない（アラーム発火 or 手動「生成」ボタンで作る）
             // レポートモーダルは「新しいレポートが出た直後の1回だけ」表示する

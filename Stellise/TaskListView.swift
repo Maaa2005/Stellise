@@ -24,6 +24,8 @@ struct TaskListView: View {
             Text("完了まで あと\(totalRemainingMinutes)分")
                 .font(.system(.title2, design: .rounded, weight: .semibold))
                 .foregroundStyle(.white)
+                .contentTransition(.numericText(countsDown: true))
+                .animation(.spring(response: 0.5, dampingFraction: 0.9), value: totalRemainingMinutes)
 
             VStack(spacing: 12) {
                 ForEach(orderedTasks) { task in
@@ -37,6 +39,10 @@ struct TaskListView: View {
                     )
                     .offset(y: draggingTaskID == task.id ? dragOffsetY : 0)
                     .zIndex(draggingTaskID == task.id ? 1 : 0)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .bottom)),
+                        removal: .scale(scale: 0.9).combined(with: .opacity)
+                    ))
                 }
             }
         }
@@ -92,7 +98,7 @@ struct TaskListView: View {
 
     private func complete(_ task: MyTask) {
         guard let index = appState.dailyTasks.firstIndex(where: { $0.id == task.id }) else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
             orderedTasks.removeAll { $0.id == task.id }
             appState.dailyTasks[index].isCompleted = true
         }
@@ -110,13 +116,23 @@ private struct TaskRow: View {
 
     @State private var hasGivenFeedback: Bool = false
     @State private var isCompleting: Bool = false
+    @State private var ringTrim: CGFloat = 0
+    @State private var checkmarkPop: Bool = false
 
     var body: some View {
         Button {
             guard !isCompleting else { return }
             isCompleting = true
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                ringTrim = 1
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                    checkmarkPop = true
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                 onComplete()
             }
         } label: {
@@ -184,10 +200,20 @@ private struct TaskRow: View {
             )
             .overlay {
                 if isCompleting {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.green)
-                        .transition(.scale.combined(with: .opacity))
+                    ZStack {
+                        Circle()
+                            .trim(from: 0, to: ringTrim)
+                            .stroke(Color.green, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(.green)
+                            .scaleEffect(checkmarkPop ? 1.0 : 0.3)
+                            .opacity(checkmarkPop ? 1 : 0)
+                    }
+                    .transition(.opacity)
                 }
             }
             .shadow(color: .black.opacity(isDragging ? 0.35 : 0), radius: isDragging ? 14 : 0, y: isDragging ? 6 : 0)
