@@ -15,13 +15,13 @@ class CalendarManager {
         return await withCheckedContinuation { continuation in
             eventStore.requestFullAccessToEvents { (granted, error) in
                 if let error = error {
-                    print("【CalendarManager】アクセスリクエスト中にエラー: \(error.localizedDescription)")
+                    debugLog("【CalendarManager】アクセスリクエスト中にエラー: \(error.localizedDescription)")
                     continuation.resume(returning: false)
                 } else {
                     if granted {
-                        print("【CalendarManager】カレンダー（フルアクセス）が許可されました。")
+                        debugLog("【CalendarManager】カレンダー（フルアクセス）が許可されました。")
                     } else {
-                        print("【CalendarManager】カレンダー（フルアクセス）が拒否されました。")
+                        debugLog("【CalendarManager】カレンダー（フルアクセス）が拒否されました。")
                     }
                     continuation.resume(returning: granted)
                 }
@@ -38,9 +38,9 @@ class CalendarManager {
         let status = EKEventStore.authorizationStatus(for: .event)
         
         guard status == .fullAccess else {
-            print("【CalendarManager】カレンダーのフルアクセス許可がありません。イベントを取得できません。")
+            debugLog("【CalendarManager】カレンダーのフルアクセス許可がありません。イベントを取得できません。")
             if status == .writeOnly {
-                 print("【CalendarManager】書き込み専用アクセスのみ許可されています。読み取りはできません。")
+                 debugLog("【CalendarManager】書き込み専用アクセスのみ許可されています。読み取りはできません。")
             }
             return [] // 許可がない場合は空の配列を返す
         }
@@ -59,7 +59,7 @@ class CalendarManager {
         // イベントを検索
         let events = eventStore.events(matching: predicate)
         
-        print("【CalendarManager】\(events.count)件のイベントを取得しました。")
+        debugLog("【CalendarManager】\(events.count)件のイベントを取得しました。")
         return events
     }
 }

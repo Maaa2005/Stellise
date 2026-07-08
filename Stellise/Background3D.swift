@@ -562,21 +562,26 @@ private enum SceneBuilder {
     }
 }
 
-// MARK: - 天気オーバーレイ（曇り・雨）
+// MARK: - 天気オーバーレイ（曇り・雨・雪）
 
-/// 3D天体レイヤーの上に重ねる天気表現。曇り＝立体的な雲、雨＝雲＋降雨＋画面の水滴。
+/// 3D天体レイヤーの上に重ねる天気表現。曇り＝立体的な雲、雨＝雲＋降雨＋画面の水滴、雪＝雲＋降雪。
 private struct WeatherOverlayView: View {
     let condition: WeatherCondition
 
     var body: some View {
         switch condition {
         case .cloudy:
-            CloudLayer(dark: false)
+            CloudLayer(style: .overcast)
         case .rain:
             ZStack {
-                CloudLayer(dark: true, dense: true)   // 奥: 厚い雨雲（雲数を増やす）
+                CloudLayer(style: .storm)   // 奥: 厚い雨雲（雲数を増やす）
                 RainLayer()              // 中: 降る雨
                 RainGlassLayer()         // 最前面: 画面(ガラス)に当たって垂れる水滴
+            }
+        case .snow:
+            ZStack {
+                CloudLayer(style: .overcast)   // 奥: 雪空の一面曇り
+                SnowLayer()                    // 手前: 降る雪
             }
         default:
             Color.clear
@@ -584,12 +589,37 @@ private struct WeatherOverlayView: View {
     }
 }
 
+/// 雲の見た目スタイル。`.fair`=薄雲少し、`.overcast`=一面どんより、`.storm`=分厚い雨雲。
+private enum CloudStyle {
+    case fair
+    case overcast
+    case storm
+}
+
 /// ふんわり立体的な雲。複数のパフ(円)を重ねて雲塊にし、上を明るく下を陰らせて
 /// ボリュームを出す。数塊を異なる速度でパララックス的にゆっくり流す。
 private struct CloudLayer: View {
-    let dark: Bool
-    /// 雨など厚い曇天で雲数を増やす（空を埋めて重い雲行きにする）。
-    var dense: Bool = false
+    let style: CloudStyle
+
+    /// 雨雲(storm)のみ暗い色調パレットを使う。晴れ間の薄雲(fair)・どんより曇り(overcast)は明るい色調。
+    private var isDarkPalette: Bool { style == .storm }
+    /// 全面を敷く下地ウォッシュの色。fairは無し(nil)＝敷かない。
+    private var washColor: Color? {
+        switch style {
+        case .fair: return nil
+        case .overcast: return Color(white: 0.85)   // 明るいどんより下地
+        case .storm: return Color(white: 0.42)      // 重い雨雲の下地
+        }
+    }
+    private var washOpacity: CGFloat { style == .storm ? 0.4 : 0.22 }
+    /// 下にいくほど薄くフェードする際の下限（高いほど画面下部まで濃く残る）。
+    private var minFade: CGFloat {
+        switch style {
+        case .fair: return 0.28
+        case .overcast: return 0.4
+        case .storm: return 0.55
+        }
+    }
 
     // 雲塊: (中心x割合, 中心y割合, 大きさ倍率, 流速[1で画面幅/100秒], 横長度, パフseed)
     // aspect>1=横に伸びた薄い雲 / <1=こんもり丸い雲。個体ごとに変えて同じ形の反復を避ける。
@@ -620,28 +650,33 @@ private struct CloudLayer: View {
         Cloud(x: 0.46, y: 0.68, scale: 0.55, speed: 0.018, aspect: 0.8,  seed: 210),
         Cloud(x: 0.76, y: 0.72, scale: 0.6,  speed: 0.010, aspect: 1.2,  seed: 221),
     ]
-    private var clouds: [Cloud] { dense ? baseClouds + denseClouds : baseClouds }
+    /// 表示する雲塊の集合。overcastはbaseClouds＋denseCloudsの前半で「一面曇り」だが雨ほど重くしない。
+    private var clouds: [Cloud] {
+        switch style {
+        case .fair: return baseClouds
+        case .overcast: return baseClouds + Array(denseClouds.prefix(7))
+        case .storm: return baseClouds + denseClouds
+        }
+    }
 
     var body: some View {
         TimelineView(.animation) { tl in
             Canvas { ctx, size in
                 let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
 
-                // 雨は空全体を厚い雲が覆っている想定。個々の雲塊だけだと隙間がスカスカに
+                // 雨・曇りは空全体を雲が覆っている想定。個々の雲塊だけだと隙間がスカスカに
                 // 見えるので、先に画面全体を薄い曇りベースで塗って隙間をなくす。
-                if dense {
-                    let washColor = dark ? Color(white: 0.42) : Color(white: 0.85)
+                if let washColor {
                     ctx.fill(Path(CGRect(origin: .zero, size: size)),
-                              with: .color(washColor.opacity(0.4)))
+                              with: .color(washColor.opacity(washOpacity)))
                 }
 
                 for cloud in clouds {
                     // 一方向にゆっくり流して画面外で折り返す（折返しはオフスクリーンで起こる）
                     let frac = (cloud.x + t * cloud.speed).truncatingRemainder(dividingBy: 1.0)
                     let cx = frac * (size.width * 1.6) - size.width * 0.3
-                    // 下にいくほど薄くフェード（上=濃い、下=淡い）。ただし雨は空全体を覆うため
+                    // 下にいくほど薄くフェード（上=濃い、下=淡い）。ただし雨/曇りは空全体を覆うため
                     // 下限を高めに保ち、画面下部まで雲が透けすぎないようにする。
-                    let minFade: CGFloat = dense ? 0.55 : 0.28
                     let fade = max(minFade, min(1.0, 1.18 - cloud.y * 1.0))
                     ctx.drawLayer { layer in
                         layer.opacity = fade
@@ -661,9 +696,9 @@ private struct CloudLayer: View {
     private func drawCloud(_ ctx: GraphicsContext, size: CGSize,
                            cx: CGFloat, cy: CGFloat, scale: CGFloat, aspect: CGFloat, seed: UInt64) {
         let baseW = size.width * 0.26 * scale
-        let topColor = dark ? Color(white: 0.70) : Color.white
-        let midColor = dark ? Color(white: 0.50) : Color(white: 0.88)
-        let botColor = dark ? Color(white: 0.30) : Color(white: 0.72)
+        let topColor = isDarkPalette ? Color(white: 0.70) : Color.white
+        let midColor = isDarkPalette ? Color(white: 0.50) : Color(white: 0.88)
+        let botColor = isDarkPalette ? Color(white: 0.30) : Color(white: 0.72)
         // 横長度。aspect>1で横に広く薄く、<1でこんもり背を高く。面積はほぼ保つ。
         let hSpread = baseW * 1.7 * aspect
         let vSpread = baseW * 0.30 / aspect
@@ -674,9 +709,9 @@ private struct CloudLayer: View {
         let bodyW = baseW * 2.2 * aspect, bodyH = baseW * 1.0 / aspect
         let bodyRect = CGRect(x: cx - bodyW / 2, y: cy - bodyH / 2, width: bodyW, height: bodyH)
         let bodyGrad = Gradient(stops: [
-            .init(color: midColor.opacity(dark ? 0.70 : 0.74), location: 0.0),
-            .init(color: midColor.opacity(dark ? 0.42 : 0.46), location: 0.45),
-            .init(color: midColor.opacity(dark ? 0.14 : 0.16), location: 0.78),
+            .init(color: midColor.opacity(isDarkPalette ? 0.70 : 0.74), location: 0.0),
+            .init(color: midColor.opacity(isDarkPalette ? 0.42 : 0.46), location: 0.45),
+            .init(color: midColor.opacity(isDarkPalette ? 0.14 : 0.16), location: 0.78),
             .init(color: midColor.opacity(0.0), location: 1.0),   // 縁を長く引いてぼかす
         ])
         ctx.fill(Path(ellipseIn: bodyRect),
@@ -689,7 +724,7 @@ private struct CloudLayer: View {
             var rng = SeededRandom(seed: seed &+ UInt64(layer) &* 1000)
             let shade = layer == 0 ? botColor : topColor
             let yoff: CGFloat = layer == 0 ? baseW * 0.24 / aspect : -baseW * 0.04
-            let peak: CGFloat = layer == 0 ? (dark ? 0.60 : 0.52) : (dark ? 0.92 : 0.92)
+            let peak: CGFloat = layer == 0 ? (isDarkPalette ? 0.60 : 0.52) : (isDarkPalette ? 0.92 : 0.92)
             for _ in 0..<puffCount {
                 // 横に広く・縦は薄く散らして横長の雲塊にする（aspectで個体差）
                 let px = cx + CGFloat(rng.next() - 0.5) * hSpread
@@ -714,6 +749,42 @@ private struct CloudLayer: View {
                                                startRadius: 0, endRadius: r))
             }
         }
+    }
+}
+
+/// ふわふわ舞い落ちる雪。RainLayerと同じくCanvas+TimelineViewで毎フレーム描画。
+/// 雨よりずっとゆっくり落ち、横風でsin状に揺れながら漂う。画面下端で上へ折り返す。
+private struct SnowLayer: View {
+    var body: some View {
+        TimelineView(.animation) { tl in
+            Canvas { ctx, size in
+                let t = CGFloat(tl.date.timeIntervalSinceReferenceDate)
+                let span = size.height + 40
+                var rng = SeededRandom(seed: 8080)
+                for _ in 0..<56 {
+                    let x0 = CGFloat(rng.next()) * size.width
+                    // 大きい片ほど手前(=速く濃く)、小さい片ほど奥(=遅く薄く)という奥行き感を出す
+                    let s = CGFloat(rng.next())
+                    let r = 1.5 + s * s * 2.0            // 半径 1.5..3.5pt
+                    let fallSpeed = 16 + s * 30           // px/s（雨よりずっと遅い）
+                    let phase = CGFloat(rng.next()) * span
+                    let alpha = 0.5 + s * 0.4             // opacity 0.5..0.9（大きい片ほど濃く）
+
+                    // 横揺れドリフト（sinで左右に漂う）。個体ごとに周期・振幅・位相をばらけさせる。
+                    let driftAmp = 8 + CGFloat(rng.next()) * 14
+                    let driftFreq = 0.3 + CGFloat(rng.next()) * 0.4
+                    let driftPhase = CGFloat(rng.next()) * .pi * 2
+
+                    let y = (t * fallSpeed + phase).truncatingRemainder(dividingBy: span) - 20
+                    let x = x0 + sin(t * driftFreq + driftPhase) * driftAmp
+
+                    let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                    ctx.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
+                }
+            }
+            .blur(radius: 1)   // 遠景の粒をわずかに滲ませて奥行きを出す
+        }
+        .allowsHitTesting(false)
     }
 }
 

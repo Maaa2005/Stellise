@@ -144,6 +144,7 @@ class AppState: ObservableObject {
     // アプリ固有の固定 UUID（再起動後もキャンセルできるよう定数化）
     let morningAlarmID     = UUID(uuidString: "A3B7C2D1-E4F5-6789-ABCD-EF0123456789")!
     let snoozeGuardAlarmID = UUID(uuidString: "B4C8D3E2-F5A6-789B-CDEF-012345678901")!
+    let bedtimeReminderID  = "bedtimeReminder"
     private var alarmEffectsTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
     private var morningTrafficTimer: Timer?
@@ -184,7 +185,7 @@ class AppState: ObservableObject {
             }
             
             save() // デバイスに保存
-            print("📝 フィードバックを保存しました: \(taskTitle) = \(isGood ? "Good" : "Bad")")
+            debugLog("📝 フィードバックを保存しました: \(taskTitle) = \(isGood ? "Good" : "Bad")")
         }
     func configureAudioSession() {
             let session = AVAudioSession.sharedInstance()
@@ -194,9 +195,9 @@ class AppState: ObservableObject {
                 // .allowBluetooth: Bluetoothイヤホン対応
                 try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
                 try session.setActive(true)
-                print("🔊 AudioSession設定完了: PlayAndRecord + DefaultToSpeaker")
+                debugLog("🔊 AudioSession設定完了: PlayAndRecord + DefaultToSpeaker")
             } catch {
-                print("❌ AudioSession設定エラー: \(error)")
+                debugLog("❌ AudioSession設定エラー: \(error)")
             }
         }
     // ==========================================
@@ -213,7 +214,7 @@ class AppState: ObservableObject {
                 self.isLoading = true
                 self.connectionError = false
             }
-            print("🧠 [SmartSchedule] 計算を開始します...")
+            debugLog("🧠 [SmartSchedule] 計算を開始します...")
             
             defer {
                 Task { @MainActor in
@@ -344,10 +345,10 @@ class AppState: ObservableObject {
         // ==========================================
         
         private func updateTasksViaAI(departureTime: Date, events: [EKEvent], isPremium: Bool, isBasedOnEvent: Bool) async {
-            print("🤖 AIタスク生成を開始...")
+            debugLog("🤖 AIタスク生成を開始...")
             
             guard let url = URL(string: "\(serverBaseURL)/suggest_tasks") else {
-                print("❌ URL生成失敗 -> フォールバック実行")
+                debugLog("❌ URL生成失敗 -> フォールバック実行")
                 generateFallbackTasks(departureTime: departureTime)
                 return
             }
@@ -396,7 +397,7 @@ class AppState: ObservableObject {
             )
             
             guard let httpBody = try? JSONEncoder().encode(reqBody) else {
-                print("❌ JSONエンコード失敗 -> フォールバック実行")
+                debugLog("❌ JSONエンコード失敗 -> フォールバック実行")
                 generateFallbackTasks(departureTime: departureTime)
                 return
             }
@@ -413,7 +414,7 @@ class AppState: ObservableObject {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                    print("⚠️ サーバーエラー -> フォールバック実行")
+                    debugLog("⚠️ サーバーエラー -> フォールバック実行")
                     generateFallbackTasks(departureTime: departureTime)
                     return
                 }
@@ -421,7 +422,7 @@ class AppState: ObservableObject {
                 let suggestedTasks = try JSONDecoder().decode([MyTask].self, from: data)
                 
                 if suggestedTasks.isEmpty {
-                    print("⚠️ AIが空リストを返却 -> フォールバック実行")
+                    debugLog("⚠️ AIが空リストを返却 -> フォールバック実行")
                     generateFallbackTasks(departureTime: departureTime)
                     return
                 }
@@ -434,11 +435,11 @@ class AppState: ObservableObject {
                             self.dailyTasks[i].source = "routine"
                         }
                     }
-                    print("✅ AIタスク提案を反映しました: \(suggestedTasks.count)件")
+                    debugLog("✅ AIタスク提案を反映しました: \(suggestedTasks.count)件")
                 }
                 
             } catch {
-                print("❌ AI通信エラー: \(error.localizedDescription) -> フォールバック実行")
+                debugLog("❌ AI通信エラー: \(error.localizedDescription) -> フォールバック実行")
                 generateFallbackTasks(departureTime: departureTime)
             }
         }
@@ -448,10 +449,10 @@ class AppState: ObservableObject {
     // ==========================================
     
     private func generateFallbackTasks(departureTime: Date) {
-        print("🛡 フォールバック: マスタタスクからスケジュールを自動生成します")
+        debugLog("🛡 フォールバック: マスタタスクからスケジュールを自動生成します")
 
         guard !userData.masterTasks.isEmpty else {
-            print("⚠️ マスタタスクも空です。タスクを生成できません。")
+            debugLog("⚠️ マスタタスクも空です。タスクを生成できません。")
             // AIも失敗しフォールバックも作れない: 無言で空に戻さず、再試行UI(DayView)を出す
             Task { @MainActor in self.connectionError = true }
             return
@@ -478,7 +479,7 @@ class AppState: ObservableObject {
         
         Task { @MainActor in
             self.dailyTasks = fallbackTasks
-            print("✅ フォールバック完了: \(fallbackTasks.count)件のタスクを生成")
+            debugLog("✅ フォールバック完了: \(fallbackTasks.count)件のタスクを生成")
         }
     }
     
@@ -497,7 +498,7 @@ class AppState: ObservableObject {
             return
         }
         
-        print("🚦 渋滞調整: \(Int(diffSeconds / 60))分 短縮します")
+        debugLog("🚦 渋滞調整: \(Int(diffSeconds / 60))分 短縮します")
         var secondsToCut = abs(diffSeconds)
         let now = Date()
         
@@ -516,14 +517,14 @@ class AppState: ObservableObject {
             if task.source == "ai" {
                 secondsToCut -= originalDurationSec
                 dailyTasks.remove(at: i)
-                print("   🗑 AIタスク削除: \(task.title)")
+                debugLog("   🗑 AIタスク削除: \(task.title)")
             } else {
                 if originalDurationSec > 60 {
                     let cutAmount = min(secondsToCut, originalDurationSec - 60)
                     let newDurationMin = Int((originalDurationSec - cutAmount) / 60)
                     dailyTasks[i].duration = "\(newDurationMin) min"
                     secondsToCut -= cutAmount
-                    print("   ✂️ ルーティン短縮: \(task.title) -> \(newDurationMin)分")
+                    debugLog("   ✂️ ルーティン短縮: \(task.title) -> \(newDurationMin)分")
                 }
             }
         }
@@ -566,7 +567,7 @@ class AppState: ObservableObject {
         let mode = userData.travelMode
         let interval: TimeInterval = (mode == "transit") ? 900 : 300
         
-        print("☀️ [Monitor] 開始: \(mode) / \(Int(interval/60))分間隔")
+        debugLog("☀️ [Monitor] 開始: \(mode) / \(Int(interval/60))分間隔")
         
         morningTrafficTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -661,7 +662,7 @@ class AppState: ObservableObject {
             let deadline = startTime.addingTimeInterval(durationMin * 60 + 60)
             let secondsToWait = max(deadline.timeIntervalSince(Date()), 180.0)
             
-            print("🛡️ スヌーズガード作動: \(firstTask.title) が \(Int(secondsToWait))秒後 までに終わらなければアラーム再開")
+            debugLog("🛡️ スヌーズガード作動: \(firstTask.title) が \(Int(secondsToWait))秒後 までに終わらなければアラーム再開")
 
             // 1. 【アプリ終了・画面ロック時の二度寝対策】AlarmKit でアラームを予約
             //    ローカル通知と異なり、おやすみモード貫通・時計アプリ同等の音量で鳴動する
@@ -682,9 +683,9 @@ class AppState: ObservableObject {
                         attributes: attributes
                     )
                     _ = try await AlarmManager.shared.schedule(id: snoozeGuardAlarmID, configuration: configuration)
-                    print("🛡️ AlarmKit: スヌーズガードアラームをセット（\(Int(secondsToWait))秒後）")
+                    debugLog("🛡️ AlarmKit: スヌーズガードアラームをセット（\(Int(secondsToWait))秒後）")
                 } catch {
-                    print("❌ AlarmKit: スヌーズガードのセット失敗: \(error.localizedDescription)")
+                    debugLog("❌ AlarmKit: スヌーズガードのセット失敗: \(error.localizedDescription)")
                 }
             }
 
@@ -696,7 +697,7 @@ class AppState: ObservableObject {
                     
                     if !Task.isCancelled {
                         if let currentTask = self.dailyTasks.first(where: { $0.id == firstTask.id }), !currentTask.isCompleted {
-                            print("🚨 内部スヌーズガード発動！タスク未完了のため強制アラーム！")
+                            debugLog("🚨 内部スヌーズガード発動！タスク未完了のため強制アラーム！")
                             self.isAlarmRinging = true
                             self.startAlarmEffects()
                         }
@@ -710,7 +711,7 @@ class AppState: ObservableObject {
         func cancelSnoozeGuardIfNeeded() {
             guard let firstTask = dailyTasks.first else { return }
             if firstTask.isCompleted {
-                print("🛑 最初のタスクが完了したため、スヌーズガードを解除します")
+                debugLog("🛑 最初のタスクが完了したため、スヌーズガードを解除します")
                 snoozeGuardTask?.cancel()
                 snoozeGuardTask = nil
                 // AlarmKit のスヌーズガードアラームもキャンセル
@@ -823,10 +824,10 @@ class AppState: ObservableObject {
                                 }
                             }
                             
-                            print("🌤 天気更新: \(iconCode) -> 昼夜フラグ: \(self.isWeatherIconSystem ? "夜(システム)" : "昼(オリジナル)")")
+                            debugLog("🌤 天気更新: \(iconCode) -> 昼夜フラグ: \(self.isWeatherIconSystem ? "夜(システム)" : "昼(オリジナル)")")
                         }
         } catch {
-            print("❌ 天気取得エラー: \(error)")
+            debugLog("❌ 天気取得エラー: \(error)")
         }
     }
     
@@ -848,7 +849,7 @@ class AppState: ObservableObject {
             try encoded.write(to: url)
             // アラーム時刻の変更をホーム画面ウィジェットに即反映
             WidgetCenter.shared.reloadAllTimelines()
-        } catch { print("❌ 保存エラー: \(error)") }
+        } catch { debugLog("❌ 保存エラー: \(error)") }
     }
     
     static func loadUserData(appGroupID: String) -> UserData? {
@@ -898,7 +899,7 @@ class AppState: ObservableObject {
 
         guard isSmartAlarmWindow, !smartAlarmTriggered else { return }
         if intensity > 2.5 {
-            print("💤 浅い睡眠検知 -> スマートアラーム発動")
+            debugLog("💤 浅い睡眠検知 -> スマートアラーム発動")
             smartAlarmTriggered = true
             isAlarmRinging = true
             startAlarmEffects()
@@ -914,7 +915,7 @@ class AppState: ObservableObject {
             let triggerSounds = ["Cough", "Speech", "Gasp"]
             
             if triggerSounds.contains(sound) {
-                print("🎤 音声検知(\(sound)) -> スマートアラーム発動")
+                debugLog("🎤 音声検知(\(sound)) -> スマートアラーム発動")
                 smartAlarmTriggered = true
                 isAlarmRinging = true
                 startAlarmEffects()
@@ -1018,7 +1019,7 @@ class AppState: ObservableObject {
         sleepSessionStart = Date()
         nightlySnoreCount = 0
         nightlyMovementCount = 0
-        print("🌙 睡眠セッション開始: いびき・体動の記録をリセット")
+        debugLog("🌙 睡眠セッション開始: いびき・体動の記録をリセット")
     }
 
     /// アラーム停止時に呼ぶ。夜間に集計したいびき・体動からスコアを算出する。
@@ -1047,7 +1048,7 @@ class AppState: ObservableObject {
         lastSleepAdvice = makeSleepAdvice(hours: hours, movementsPerHour: movementsPerHour, snores: nightlySnoreCount)
         pendingSleepReportModal = true
 
-        print("📊 睡眠レポート確定: score=\(lastSleepScore), 体動=\(nightlyMovementCount), いびき=\(nightlySnoreCount)")
+        debugLog("📊 睡眠レポート確定: score=\(lastSleepScore), 体動=\(nightlyMovementCount), いびき=\(nightlySnoreCount)")
     }
 
     private func makeSleepAdvice(hours: Double, movementsPerHour: Double, snores: Int) -> String {
@@ -1110,9 +1111,9 @@ class AppState: ObservableObject {
         Task {
             do {
                 try await AlarmManager.shared.requestAuthorization()
-                print("✅ AlarmKit: 許可が得られました")
+                debugLog("✅ AlarmKit: 許可が得られました")
             } catch {
-                print("❌ AlarmKit: 許可エラー: \(error.localizedDescription)")
+                debugLog("❌ AlarmKit: 許可エラー: \(error.localizedDescription)")
             }
         }
     }
@@ -1120,6 +1121,8 @@ class AppState: ObservableObject {
     /// AlarmKit で朝のアラームをスケジュールする
     func scheduleMorningAlarm() {
         cancelMorningAlarm()
+        // アラーム変更のたびに就寝リマインダーも追従させる（アラームOFF時は内部で解除される）
+        scheduleBedtimeReminder()
         guard userData.isAlarmActive else { return }
 
         let calendar = Calendar.current
@@ -1135,7 +1138,7 @@ class AppState: ObservableObject {
                 if AlarmManager.shared.authorizationState != .authorized {
                     let state = try await AlarmManager.shared.requestAuthorization()
                     guard state == .authorized else {
-                        print("⚠️ AlarmKit: 権限が得られなかったためアラームを予約しません")
+                        debugLog("⚠️ AlarmKit: 権限が得られなかったためアラームを予約しません")
                         return
                     }
                 }
@@ -1150,9 +1153,54 @@ class AppState: ObservableObject {
                     attributes: attributes
                 )
                 _ = try await AlarmManager.shared.schedule(id: morningAlarmID, configuration: configuration)
-                print("✅ AlarmKit: アラームを \(targetDate) にセット完了")
+                debugLog("✅ AlarmKit: アラームを \(targetDate) にセット完了")
             } catch {
-                print("❌ AlarmKit: アラームのセット失敗: \(error.localizedDescription)")
+                debugLog("❌ AlarmKit: アラームのセット失敗: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// 就寝リマインダー通知をスケジュールする（アラーム時刻の8時間30分前・毎日repeat）
+    func scheduleBedtimeReminder() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [bedtimeReminderID])
+
+        guard userData.isBedtimeReminderEnabled, userData.isAlarmActive else { return }
+
+        // アラーム時刻の8時間30分前を算出（日付をまたぐ場合は1440分でラップ）
+        let alarmTotalMinutes = userData.alarmHour * 60 + userData.alarmMinute
+        let wrappedMinutes = ((alarmTotalMinutes - (8 * 60 + 30)) % 1440 + 1440) % 1440
+        let reminderHour = wrappedMinutes / 60
+        let reminderMinute = wrappedMinutes % 60
+        let alarmHour = userData.alarmHour
+        let alarmMinute = userData.alarmMinute
+
+        requestNotificationPermission()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { [bedtimeReminderID] granted, error in
+            guard granted else {
+                if let error = error {
+                    debugLog("❌ 就寝リマインダー: 通知権限エラー: \(error.localizedDescription)")
+                }
+                return
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = "そろそろおやすみの時間"
+            content.body = String(format: "明日は %02d:%02d 起床。今夜も良い眠りを 🌙", alarmHour, alarmMinute)
+            content.sound = .default
+
+            var dateComponents = DateComponents()
+            dateComponents.hour = reminderHour
+            dateComponents.minute = reminderMinute
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+
+            let request = UNNotificationRequest(identifier: bedtimeReminderID, content: content, trigger: trigger)
+            center.add(request) { error in
+                if let error = error {
+                    debugLog("❌ 就寝リマインダー登録失敗: \(error.localizedDescription)")
+                } else {
+                    debugLog("✅ 就寝リマインダーを \(reminderHour):\(reminderMinute) にセット完了")
+                }
             }
         }
     }
@@ -1164,7 +1212,7 @@ class AppState: ObservableObject {
         do {
             try AlarmManager.shared.cancel(id: morningAlarmID)
         } catch {
-            print("⚠️ AlarmKit: アラームキャンセル失敗: \(error.localizedDescription)")
+            debugLog("⚠️ AlarmKit: アラームキャンセル失敗: \(error.localizedDescription)")
         }
     }
 }

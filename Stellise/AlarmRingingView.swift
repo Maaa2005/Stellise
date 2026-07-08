@@ -22,6 +22,7 @@ struct AlarmRingingView: View {
     // 呼吸に同期した波紋（Headspace的な演出）
     @State private var rippleGrow: Bool = false
     @State private var breathTick = Timer.publish(every: 2.6, on: .main, in: .common).autoconnect()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -146,6 +147,16 @@ struct AlarmRingingView: View {
                 }
                 // (3) 明るさを元に戻す
                 UIScreen.main.brightness = self.originalBrightness
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // 鳴動中にホームへ出る／バックグラウンドに回ると明るさが最大のまま残るため、
+            // 非アクティブ化のタイミングで明示的に元の明るさへ戻す
+            if newPhase == .background || newPhase == .inactive {
+                UIScreen.main.brightness = self.originalBrightness
+            } else if newPhase == .active && appState.isAlarmRinging {
+                // 復帰時、まだ鳴動中なら再び明るさを最大にする
+                UIScreen.main.brightness = 1.0
             }
         }
         }

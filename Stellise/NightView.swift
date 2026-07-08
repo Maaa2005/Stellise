@@ -169,7 +169,7 @@ struct NightView: View {
             // 通常アラーム発動判定
             if appState.userData.isAlarmActive && !appState.isAlarmRinging && !isShowingTimePicker && !appState.isAlarmFinished {
                 if timeUntilAlarm <= 0 && timeUntilAlarm > -60 {
-                    print("⏰ 時間到達: アラーム発動！")
+                    debugLog("⏰ 時間到達: アラーム発動！")
                     // アラーム発火を起点に、朝のタスクを生成（朝画面の自動生成は廃止したため）
                     Task { await appState.refreshSmartSchedule(isPremium: subscriptionManager.isPremium) }
                     appState.isAlarmRinging = true
@@ -186,6 +186,10 @@ struct NightView: View {
     /// 就寝〜起床の残り時間を示す円形リング。中央に「あと◯時間◯分」＋起床時刻。
     private var sleepRing: some View {
         ZStack {
+            // 眠りの進行(ringProgress)に応じてリングの外側に星が増えていく演出（控えめ・静的）
+            starField
+                .allowsHitTesting(false)
+
             Circle()
                 .stroke(Color.white.opacity(0.12), lineWidth: 14)
 
@@ -220,6 +224,56 @@ struct NightView: View {
             isShowingTimePicker = true
         }
     }
+
+    /// リング進捗(ringProgress)が進むほど星が増えていく背景演出。
+    /// 星は決定論的に配置（シード固定の擬似乱数）した静的な点で、TimelineViewは使わない。
+    /// ringProgressが毎秒更新されるたびに表示数(Int(ringProgress * 24))が増えるだけで自然に増殖して見える。
+    private var starField: some View {
+        Canvas { context, size in
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let visibleCount = Int(ringProgress * Double(Self.nightStars.count))
+            for star in Self.nightStars.prefix(visibleCount) {
+                let point = CGPoint(
+                    x: center.x + CGFloat(cos(star.angle) * star.radius),
+                    y: center.y + CGFloat(sin(star.angle) * star.radius)
+                )
+                let rect = CGRect(x: point.x - star.diameter / 2, y: point.y - star.diameter / 2,
+                                   width: star.diameter, height: star.diameter)
+                context.opacity = star.opacity
+                context.fill(Path(ellipseIn: rect), with: .color(.white))
+            }
+        }
+        .frame(width: 300, height: 300)
+    }
+
+    /// 星1つ分の決定論的な配置情報。
+    private struct NightStar {
+        let angle: Double     // ラジアン
+        let radius: Double    // 中心からの距離(pt)
+        let diameter: Double  // 直径(pt)。半径0.8〜1.6pt相当
+        let opacity: Double
+    }
+
+    /// 星フィールドの固定配置（シード付き擬似乱数で決定論的に生成）。
+    /// sleepRing(240x240・半径120・線幅14＝おおよそ半径113〜127がリング線)を避けるため、
+    /// 半径130〜150ptの範囲（リング外側〜Canvas 300x300の縁付近）にのみ配置する。
+    private static let nightStars: [NightStar] = {
+        var seed: UInt64 = 20260707
+        func nextUnit() -> Double {
+            // 決定論的な疑似乱数(LCG)。毎回同じ配置になる。
+            seed = 6364136223846793005 &* seed &+ 1442695040888963407
+            return Double(seed >> 33) / Double(1 << 31)
+        }
+        var stars: [NightStar] = []
+        for _ in 0..<24 {
+            let angle = nextUnit() * 2 * .pi
+            let radius = 130 + nextUnit() * 20        // 130...150pt（リング線上を避ける）
+            let diameter = 1.6 + nextUnit() * 1.6      // 直径1.6〜3.2pt（半径0.8〜1.6pt）
+            let opacity = 0.4 + nextUnit() * 0.4       // 0.4〜0.8
+            stars.append(NightStar(angle: angle, radius: radius, diameter: diameter, opacity: opacity))
+        }
+        return stars
+    }()
 
     /// 就寝(セッション開始)〜起床(アラーム時刻)を 0...1 で表す進捗。
     private func sleepProgress(now: Date, wake: Date) -> Double {
@@ -396,7 +450,7 @@ struct NightView: View {
     // ==========================================
     private func startSleepMonitoring() {
         if !appState.sensorManager.isDetecting {
-            print("🌙 NightView: 睡眠・音声センサー起動")
+            debugLog("🌙 NightView: 睡眠・音声センサー起動")
             appState.startNightSession() // 睡眠レポート用の集計を開始
             appState.sensorManager.startDetection(threshold: appState.movementThreshold)
             Task { await appState.soundAnalyzer.startAnalyzing() }

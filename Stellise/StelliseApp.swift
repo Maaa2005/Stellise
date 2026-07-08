@@ -14,9 +14,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         if Auth.auth().currentUser == nil {
             Auth.auth().signInAnonymously { result, error in
                 if let error = error {
-                    print("❌ 匿名サインイン失敗: \(error.localizedDescription)")
+                    debugLog("❌ 匿名サインイン失敗: \(error.localizedDescription)")
                 } else if let uid = result?.user.uid {
-                    print("✅ 匿名サインイン成功: \(uid)")
+                    debugLog("✅ 匿名サインイン成功: \(uid)")
                 }
             }
         }
@@ -154,7 +154,7 @@ struct StelliseApp: App {
         let hour = currentHour
         let weather = WeatherCondition.from(backgroundImageName: appState.backgroundImageName)
         switch hour {
-        case 5..<7:   return .dawn                                  // 夜明け前
+        case 4..<7:   return .dawn                                  // 夜明け前
         case 7..<17:  return weather == .night ? .clear : weather   // 日中は天気連動
         case 17..<19: return .dusk                                  // 夕暮れ
         default:
@@ -169,7 +169,7 @@ struct StelliseApp: App {
     /// 深夜帯なのに天気コンディション(雨/曇り/雪)を出している場合 true。
     /// Background3DView 側でさらに暗く落とすトリガーに使う。
     private var isTrueNightWeather: Bool {
-        guard !(5..<19).contains(currentHour) else { return false }
+        guard !(4..<19).contains(currentHour) else { return false }
         switch homeCondition {
         case .rain, .cloudy, .snow: return true
         default: return false
@@ -190,7 +190,7 @@ struct StelliseApp: App {
                 appState.startAlarmEffects()
             }
         } catch {
-            print("⚠️ AlarmKit: アラーム状態の確認に失敗: \(error.localizedDescription)")
+            debugLog("⚠️ AlarmKit: アラーム状態の確認に失敗: \(error.localizedDescription)")
         }
     }
 

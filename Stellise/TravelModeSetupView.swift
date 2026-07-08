@@ -58,7 +58,7 @@ struct TravelModeSetupView: View {
                 .simultaneousGesture(TapGesture().onEnded {
                     // ★ 選択した移動手段を保存
                     appState.save()
-                    print("移動手段 (\(appState.userData.travelMode)) を保存しました。")
+                    debugLog("移動手段 (\(appState.userData.travelMode)) を保存しました。")
                 })
                 
                 Spacer()

@@ -116,7 +116,7 @@ struct TaskSetupView: View {
                                 Button(action: {
                                     focusedField = nil // キーボードを閉じる
                                     appState.save()
-                                    print("タスクリストを保存しました。")
+                                    debugLog("タスクリストを保存しました。")
                                     // 同意アラートを表示する
                                     showAIAlert = true
                                 }) {

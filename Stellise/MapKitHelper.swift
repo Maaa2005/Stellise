@@ -30,11 +30,11 @@ class MapKitHelper {
         do {
             let response = try await directions.calculate()
             if let route = response.routes.first {
-                print("🍎 MapKit計算成功: \(Int(route.expectedTravelTime / 60))分")
+                debugLog("🍎 MapKit計算成功: \(Int(route.expectedTravelTime / 60))分")
                 return Int(route.expectedTravelTime)
             }
         } catch {
-            print("❌ MapKit Error: \(error.localizedDescription)")
+            debugLog("❌ MapKit Error: \(error.localizedDescription)")
         }
         return nil
     }

@@ -40,6 +40,13 @@ struct SettingsView: View {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         }
 
+                    Toggle("就寝リマインダー", isOn: $appState.userData.isBedtimeReminderEnabled)
+                        .tint(.appAccent)
+                        .onChange(of: appState.userData.isBedtimeReminderEnabled) { _, _ in
+                            appState.save()
+                            appState.scheduleBedtimeReminder()
+                        }
+
                     HStack {
                         Text("センサー感度")
                         Spacer()
@@ -466,7 +473,7 @@ struct SettingsView: View {
                 do {
                     try await user.delete()
                 } catch {
-                    print("❌ アカウント削除エラー: \(error.localizedDescription)")
+                    debugLog("❌ アカウント削除エラー: \(error.localizedDescription)")
                 }
             }
             // 3. 端末内データを削除してオンボーディングへ戻す

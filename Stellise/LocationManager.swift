@@ -29,13 +29,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func requestLocation() async throws -> CLLocationCoordinate2D? {
         // 1. 権限状態を確認
         if manager.authorizationStatus == .notDetermined {
-            print("📍 権限が未定のため、ポップアップを表示します")
+            debugLog("📍 権限が未定のため、ポップアップを表示します")
             manager.requestWhenInUseAuthorization()
         }
         
         // 2. 既に拒否されている場合
         if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
-            print("📍 位置情報が拒否されています")
+            debugLog("📍 位置情報が拒否されています")
             return nil
         }
         
@@ -61,7 +61,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // 権限が変わった時に呼ばれる
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         self.authorizationStatus = manager.authorizationStatus
-        print("📍 権限状態変更: \(authorizationStatus.rawValue)")
+        debugLog("📍 権限状態変更: \(authorizationStatus.rawValue)")
         
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             manager.requestLocation()
@@ -75,7 +75,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // 位置取得成功
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.first else { return }
-        print("📍 位置取得成功: \(loc.coordinate.latitude), \(loc.coordinate.longitude)")
+        debugLog("📍 位置取得成功: \(loc.coordinate.latitude), \(loc.coordinate.longitude)")
         self.lastKnownLocation = loc.coordinate
         
         locationContinuation?.resume(returning: loc.coordinate)
@@ -84,7 +84,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     // エラー
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("📍 位置取得エラー: \(error.localizedDescription)")
+        debugLog("📍 位置取得エラー: \(error.localizedDescription)")
         
         // 未決定の場合はエラーにせず無視（ポップアップ中の可能性があるため）
         if manager.authorizationStatus == .notDetermined { return }

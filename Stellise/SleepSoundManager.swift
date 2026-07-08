@@ -39,7 +39,7 @@ class SleepSoundManager: ObservableObject {
         activatePlaybackSession()
 
         guard let url = Bundle.main.url(forResource: selectedSound.fileName, withExtension: "mp3") else {
-            print("❌ 音声ファイルが見つかりません: \(selectedSound.fileName).mp3")
+            debugLog("❌ 音声ファイルが見つかりません: \(selectedSound.fileName).mp3")
             return
         }
 
@@ -50,13 +50,13 @@ class SleepSoundManager: ObservableObject {
             audioPlayer?.prepareToPlay()
             audioPlayer?.play()
             isPlaying = true
-            print("🔊 \(selectedSound.rawValue) 再生開始")
+            debugLog("🔊 \(selectedSound.rawValue) 再生開始")
 
             if let duration = timerDuration {
                 startSleepTimer(duration: duration)
             }
         } catch {
-            print("❌ 音声の再生に失敗: \(error)")
+            debugLog("❌ 音声の再生に失敗: \(error)")
         }
     }
 
@@ -65,7 +65,7 @@ class SleepSoundManager: ObservableObject {
         audioPlayer = nil
         isPlaying = false
         stopSleepTimer()
-        print("🔇 睡眠音停止")
+        debugLog("🔇 睡眠音停止")
     }
 
     // アラーム鳴動前に AppState から呼ぶ（セッションを alarm 用に戻す）
@@ -86,7 +86,7 @@ class SleepSoundManager: ObservableObject {
             )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("❌ SleepSoundManager: AVAudioSession設定失敗: \(error)")
+            debugLog("❌ SleepSoundManager: AVAudioSession設定失敗: \(error)")
         }
     }
 

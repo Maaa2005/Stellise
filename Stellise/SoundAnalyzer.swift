@@ -24,13 +24,13 @@ class SoundAnalyzer: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        print("SoundAnalyzerが初期化されました。")
+        debugLog("SoundAnalyzerが初期化されました。")
     }
 
     private func loadModelAndLabels() async throws {
         guard !isModelLoaded else { return }
         
-        print("TFLite: モデルとラベルの非同期ロードを開始します...")
+        debugLog("TFLite: モデルとラベルの非同期ロードを開始します...")
         
         try await Task(priority: .userInitiated) {
             
@@ -82,7 +82,7 @@ class SoundAnalyzer: NSObject, ObservableObject {
                 self.isModelLoaded = true
                 
                 DispatchQueue.main.async {
-                    print("✅ TFLite: モデルとラベルのロードに成功しました。 (\(classNames.count) 件)")
+                    debugLog("✅ TFLite: モデルとラベルのロードに成功しました。 (\(classNames.count) 件)")
                 }
             }
         }.value
@@ -102,7 +102,7 @@ class SoundAnalyzer: NSObject, ObservableObject {
                     }
                     
             guard AVAudioSession.sharedInstance().recordPermission == .granted else {
-                print("❌ マイクの許可がありません。音声解析を中止します。")
+                debugLog("❌ マイクの許可がありません。音声解析を中止します。")
                 return
                 
             }
@@ -128,13 +128,13 @@ class SoundAnalyzer: NSObject, ObservableObject {
                 
                 // ★ポイント2: AIが要求するフォーマット (16kHz, 1ch) を定義する
                 guard let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else {
-                    print("❌ ターゲットフォーマットの作成に失敗")
+                    debugLog("❌ ターゲットフォーマットの作成に失敗")
                     return
                 }
                 
                 // ★ポイント3: 変換器 (Converter) を作成
                 guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
-                    print("❌ AVAudioConverterの作成に失敗。フォーマットがサポートされていません。")
+                    debugLog("❌ AVAudioConverterの作成に失敗。フォーマットがサポートされていません。")
                     return
                 }
                 
@@ -193,10 +193,10 @@ class SoundAnalyzer: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     self.isAnalyzing = true
                 }
-                print("🎙 音声分析(YAMNet)をバックグラウンドで開始しました")
+                debugLog("🎙 音声分析(YAMNet)をバックグラウンドで開始しました")
                 
             } catch {
-                print("❌ 音声分析の開始に失敗: \(error)")
+                debugLog("❌ 音声分析の開始に失敗: \(error)")
             }
         }
 
@@ -212,7 +212,7 @@ class SoundAnalyzer: NSObject, ObservableObject {
             self.audioBuffer = []
             
             DispatchQueue.main.async {
-                print("⏸️ 音声分析 (TFLite) を停止しました。")
+                debugLog("⏸️ 音声分析 (TFLite) を停止しました。")
             }
         }
     }
@@ -244,7 +244,7 @@ class SoundAnalyzer: NSObject, ObservableObject {
             if maxScore > 0.4 {
                 if ["Snoring", "Cough", "Speech", "Gasp"].contains(detectedLabel) {
                     DispatchQueue.main.async {
-                        print("⚠️ TFLite イベント検出: \(detectedLabel) (信頼度: \(maxScore * 100)%)")
+                        debugLog("⚠️ TFLite イベント検出: \(detectedLabel) (信頼度: \(maxScore * 100)%)")
                         self.lastDetectedSound = detectedLabel
                     }
                 }
@@ -252,7 +252,7 @@ class SoundAnalyzer: NSObject, ObservableObject {
             
         } catch {
             DispatchQueue.main.async {
-                print("❌ TFLite 推論エラー: \(error.localizedDescription)")
+                debugLog("❌ TFLite 推論エラー: \(error.localizedDescription)")
             }
         }
     }

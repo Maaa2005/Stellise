@@ -21,7 +21,7 @@ class SensorManager: ObservableObject {
     init() {
         // 加速度センサーが使えるかチェック
         if !motionManager.isAccelerometerAvailable {
-            print("【SensorManager】エラー: 加速度センサーが利用できません。")
+            debugLog("【SensorManager】エラー: 加速度センサーが利用できません。")
         }
         // 更新頻度 (0.5秒ごとにチェック)
         motionManager.accelerometerUpdateInterval = 0.5
@@ -36,7 +36,7 @@ class SensorManager: ObservableObject {
         self.isDetecting = true
         self.lastMagnitude = 0.0
         
-        print("【SensorManager】センサー検知を開始しました。(閾値: \(threshold))")
+        debugLog("【SensorManager】センサー検知を開始しました。(閾値: \(threshold))")
         
         // 加速度データの取得開始
         motionManager.startAccelerometerUpdates(to: self.queue) { [weak self] (data, error) in
@@ -67,7 +67,7 @@ class SensorManager: ObservableObject {
                 // うつ伏せ状態が変わったら通知 (省電力モード切替)
                 if self.isFaceDown != currentIsFaceDown {
                     self.isFaceDown = currentIsFaceDown
-                    print("📱 向き変更: \(currentIsFaceDown ? "うつ伏せ (省電力ON)" : "仰向け (通常)")")
+                    debugLog("📱 向き変更: \(currentIsFaceDown ? "うつ伏せ (省電力ON)" : "仰向け (通常)")")
                 }
             }
         }
@@ -79,6 +79,6 @@ class SensorManager: ObservableObject {
         
         self.isDetecting = false
         self.motionManager.stopAccelerometerUpdates()
-        print("【SensorManager】センサー検知を停止しました。")
+        debugLog("【SensorManager】センサー検知を停止しました。")
     }
 }

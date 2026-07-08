@@ -53,7 +53,7 @@ class SubscriptionManager: ObservableObject {
                     // 状態を最新に更新
                     await self.updateStatus()
                 } catch {
-                    print("❌ トランザクションの検証に失敗しました")
+                    debugLog("❌ トランザクションの検証に失敗しました")
                 }
             }
         }
@@ -68,7 +68,7 @@ class SubscriptionManager: ObservableObject {
         do {
             self.products = try await Product.products(for: ProductID.allCases.map { $0.rawValue })
         } catch {
-            print("❌ StoreKit 読み込みエラー: \(error)")
+            debugLog("❌ StoreKit 読み込みエラー: \(error)")
         }
     }
     
@@ -83,13 +83,13 @@ class SubscriptionManager: ObservableObject {
                 await updateStatus()
                 
             case .userCancelled, .pending:
-                print("購入がキャンセルされたか、保留中です")
+                debugLog("購入がキャンセルされたか、保留中です")
                 break
             @unknown default:
                 break
             }
         } catch {
-            print("❌ 購入処理中にエラー発生: \(error)")
+            debugLog("❌ 購入処理中にエラー発生: \(error)")
         }
     }
     
@@ -100,7 +100,7 @@ class SubscriptionManager: ObservableObject {
     /// 現在プレミアムプランが有効かどうかを確認する
     func updateStatus() async {
         if isDebugModeEnabled {
-            print("🔧 Debug Mode: 強制的にプレミアムをONにします")
+            debugLog("🔧 Debug Mode: 強制的にプレミアムをONにします")
             self.isPremium = true
             return
         }
@@ -116,7 +116,7 @@ class SubscriptionManager: ObservableObject {
                     active = true
                 }
             } catch {
-                print("❌ 無効なトランザクションをスキップしました")
+                debugLog("❌ 無効なトランザクションをスキップしました")
             }
         }
         
@@ -139,7 +139,7 @@ class SubscriptionManager: ObservableObject {
 
         // メインスレッドでUIを更新
         self.isPremium = active
-        print("👑 プレミアム状態チェック: \(active ? "有効" : "無効")")
+        debugLog("👑 プレミアム状態チェック: \(active ? "有効" : "無効")")
     }
     
     /// 機種変更時などの「購入の復元」処理
@@ -148,9 +148,9 @@ class SubscriptionManager: ObservableObject {
             // AppStore.sync() は強制的にApp Storeと通信し、レシート情報を最新にする(iOS 15+)
             try await AppStore.sync()
             await updateStatus()
-            print("✅ 購入の復元が完了しました")
+            debugLog("✅ 購入の復元が完了しました")
         } catch {
-            print("❌ 購入の復元に失敗: \(error)")
+            debugLog("❌ 購入の復元に失敗: \(error)")
         }
     }
     

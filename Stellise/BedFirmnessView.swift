@@ -99,7 +99,7 @@ struct BedFirmnessView: View {
                                 // ★★★ "NavigationLink" が押された瞬間に保存処理を実行 ★★★
                                 .simultaneousGesture(TapGesture().onEnded {
                                     appState.save()
-                                    print("ベッドの硬さ設定を保存しました。")
+                                    debugLog("ベッドの硬さ設定を保存しました。")
                                 })
                 
                 Spacer()
