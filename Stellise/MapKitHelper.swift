@@ -26,8 +26,15 @@ class MapKitHelper {
         }
         
         let directions = MKDirections(request: request)
-        
+
         do {
+            // MapKitのルート計算(calculate)は電車(.transit)非対応。
+            // 電車はETA専用API(calculateETA)でのみ所要時間が取れる。
+            if request.transportType == .transit {
+                let eta = try await directions.calculateETA()
+                debugLog("🍎 MapKit ETA計算成功(電車): \(Int(eta.expectedTravelTime / 60))分")
+                return Int(eta.expectedTravelTime)
+            }
             let response = try await directions.calculate()
             if let route = response.routes.first {
                 debugLog("🍎 MapKit計算成功: \(Int(route.expectedTravelTime / 60))分")

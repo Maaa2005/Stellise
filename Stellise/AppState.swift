@@ -741,6 +741,11 @@ class AppState: ObservableObject {
                     return seconds
                 }
             }
+            // 経路が取れなかった場合も「確認中…」のまま放置せず、目安値を表示する
+            await MainActor.run {
+                self.routeSummary = "経路不明・目安"
+                self.estimatedTravelTime = "30 分"
+            }
             return 1800
         }
         
