@@ -159,8 +159,10 @@ struct NightView: View {
                 ? min(1, max(0, 1 - timeUntilAlarm / 1800))
                 : 0
 
-            // スマートアラーム窓判定 (30分前からマイクON)
-            if timeUntilAlarm <= 1800 && timeUntilAlarm > 0 {
+            // スマートアラーム窓判定 (30分前から)。設定OFF・アラームOFFのときは開かない
+            if timeUntilAlarm <= 1800 && timeUntilAlarm > 0
+                && appState.userData.isSmartAlarmEnabled
+                && appState.userData.isAlarmActive {
                 appState.isSmartAlarmWindow = true
             } else {
                 appState.isSmartAlarmWindow = false

@@ -76,7 +76,10 @@ class AppState: ObservableObject {
     
     // MARK: - データモデル
     @Published var userData: UserData
-    @Published var dailyTasks: [MyTask] = []
+    /// 今日のタスク一覧。変更のたびに userData 経由で永続化し、同日中の再起動で消えないようにする。
+    @Published var dailyTasks: [MyTask] = [] {
+        didSet { persistDailyTasks() }
+    }
     
     // MARK: - UI状態管理
     @Published var needsOnboarding: Bool = true
@@ -156,6 +159,12 @@ class AppState: ObservableObject {
         if let loadedData = AppState.loadUserData(appGroupID: appGroupID) {
             self.userData = loadedData
             self.needsOnboarding = false
+            // 当日分のタスクを復元（再起動で朝のタスク・完了状態・並び順が消えないように）。
+            // 復元できた日は生成済み扱いにして、起動のたびのAI自動再生成（クォータ消費）も防ぐ。
+            if loadedData.lastScheduleDate == AppState.dayKey(Date()), !loadedData.dailyTasks.isEmpty {
+                self.dailyTasks = loadedData.dailyTasks
+                self.lastAIGenerationDate = Date()
+            }
         } else {
             self.userData = UserData()
             self.needsOnboarding = true
@@ -847,6 +856,21 @@ class AppState: ObservableObject {
         return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("my_routines.json")
     }
     
+    /// "yyyy-MM-dd" の日付キー。dailyTasks が「今日の分か」の判定に使う。
+    private static func dayKey(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
+    /// dailyTasks の変更を userData に写して保存する（didSet から呼ばれる）。
+    private func persistDailyTasks() {
+        userData.dailyTasks = dailyTasks
+        userData.lastScheduleDate = AppState.dayKey(Date())
+        save()
+    }
+
     func save() {
         guard let url = AppState.getSaveURL(appGroupID: appGroupID) else { return }
         do {
