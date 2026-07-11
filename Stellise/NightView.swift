@@ -14,6 +14,9 @@ struct NightView: View {
     /// 段階的覚醒: アラーム30分前から0→1へ上がり、夜空に朝焼けをゆっくり滲ませる
     @State private var preDawnProgress: Double = 0
 
+    /// 中央の就寝情報を、背景上部の表示と重ならない位置まで下げる。
+    private let sleepStatusVerticalOffset: CGFloat = 48
+
     var body: some View {
         ZStack {
             // 背景は StelliseApp の共有 Background3DView（朝⇄夜で連続）。ここでは持たない。
@@ -31,6 +34,18 @@ struct NightView: View {
                 .animation(.linear(duration: 1.0), value: preDawnProgress)
             }
 
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.08),
+                    Color.black.opacity(0.18),
+                    Color.black.opacity(0.32)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
             // --- コンテンツ ---
             VStack(spacing: 0) {
 
@@ -39,18 +54,9 @@ struct NightView: View {
                 Spacer()
 
                 // --- 中央: 就寝〜起床の残り時間を示す円形リング ---
-                VStack(spacing: 16) {
-                    Text(appState.userData.userName.isEmpty
-                         ? "おやすみなさい"
-                         : "おやすみなさい、\(appState.userData.userName)さん")
-                        .font(.system(.title3, design: .default, weight: .thin))
-                        .tracking(2)
-                        // 就寝前は純白を避け、色温度の低い温白で目への刺激を抑える
-                        .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.92))
-                        .shadow(color: .black.opacity(0.3), radius: 4)
-                        .opacity(hasAppeared ? 1 : 0)
-                        .offset(y: hasAppeared ? 0 : 8)
-
+                // リングは内側の星フィールド(300pt)とグロー(1.08倍)が240ptの枠外へ約30pt
+                // はみ出す。起床チップがそこに重ならないよう十分な間隔を空ける。
+                VStack(spacing: 44) {
                     sleepRing
                         .opacity(hasAppeared ? 1 : 0)
                         .scaleEffect(hasAppeared ? 1 : 0.9)
@@ -70,13 +76,19 @@ struct NightView: View {
                         }
                         .padding(.horizontal, 24)
                         .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(Capsule())
+                        .frame(minHeight: 48)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Theme.Palette.nightWarmText.opacity(0.18), lineWidth: 1)
+                        )
                     }
                     .foregroundStyle(Theme.Palette.nightWarmText)
                     .padding(.top, 4)
                     .opacity(hasAppeared ? 1 : 0)
+                    .buttonStyle(PressSpringButtonStyle())
                 }
+                .offset(y: sleepStatusVerticalOffset)
 
                 Spacer()
 
@@ -188,12 +200,28 @@ struct NightView: View {
     /// 就寝〜起床の残り時間を示す円形リング。中央に「あと◯時間◯分」＋起床時刻。
     private var sleepRing: some View {
         ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Theme.Palette.nightWarmText.opacity(0.10),
+                            Theme.Palette.accentDeep.opacity(0.04),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 18,
+                        endRadius: 150
+                    )
+                )
+                .blur(radius: 24)
+                .scaleEffect(1.08)
+
             // 眠りの進行(ringProgress)に応じてリングの外側に星が増えていく演出（控えめ・静的）
             starField
                 .allowsHitTesting(false)
 
             Circle()
-                .stroke(Color.white.opacity(0.12), lineWidth: 14)
+                .stroke(Theme.Palette.nightWarmText.opacity(0.12), lineWidth: 14)
 
             Circle()
                 .trim(from: 0, to: max(0.0035, ringProgress))
@@ -317,12 +345,13 @@ struct NightView: View {
                         appState.sleepSoundManager.togglePlay(timerDuration: selectedTimerDuration)
                     } label: {
                         Image(systemName: appState.sleepSoundManager.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.callout)
-                            .foregroundStyle(.white.opacity(0.85))
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.15))
+                            .font(.headline)
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.9))
+                            .frame(width: 44, height: 44)
+                            .background(Theme.Palette.nightWarmText.opacity(0.10))
                             .clipShape(Circle())
                     }
+                    .buttonStyle(PressSpringButtonStyle())
 
                     // 音の種類
                     Menu {
@@ -341,11 +370,10 @@ struct NightView: View {
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption2)
                         }
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(12)
+                        .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.88))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Theme.Palette.nightWarmText.opacity(0.08), in: Capsule())
                     }
 
                     Spacer(minLength: 0)
@@ -354,7 +382,7 @@ struct NightView: View {
                     if let remaining = appState.sleepSoundManager.remainingTime {
                         Text(formatRemaining(remaining))
                             .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.62))
                     }
 
                     // スリープタイマー
@@ -365,17 +393,16 @@ struct NightView: View {
                         Button("1時間") { selectedTimerDuration = 60 * 60 }
                     } label: {
                         Image(systemName: "timer")
-                            .font(.callout)
-                            .foregroundStyle(.white.opacity(selectedTimerDuration == nil ? 0.3 : 0.7))
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.1))
+                            .font(.headline)
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(selectedTimerDuration == nil ? 0.34 : 0.78))
+                            .frame(width: 44, height: 44)
+                            .background(Theme.Palette.nightWarmText.opacity(selectedTimerDuration == nil ? 0.06 : 0.10))
                             .clipShape(Circle())
                     }
                 }
             }
             .padding(20)
-            .background(.ultraThinMaterial)
-            .cornerRadius(24)
+            .nightSleepPanel()
         } else {
             // 非 Pro ユーザー: ロックオーバーレイ
             ZStack {
@@ -407,21 +434,20 @@ struct NightView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "lock.fill")
                             .font(.title2)
-                            .foregroundStyle(.white.opacity(0.9))
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.92))
                         Text("睡眠環境音は Pro 限定")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.9))
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.9))
                         Text("タップしてアップグレード")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.62))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
                 }
                 .buttonStyle(.plain)
             }
-            .background(.ultraThinMaterial)
-            .cornerRadius(24)
+            .nightSleepPanel()
             .sheet(isPresented: $isShowingPremium) {
                 PremiumIntroView()
                     .environmentObject(subscriptionManager)
@@ -434,10 +460,10 @@ struct NightView: View {
         HStack(spacing: 8) {
             Image(systemName: "moon.zzz.fill")
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Theme.Palette.accentLight.opacity(0.78))
             Text("睡眠環境音")
                 .font(.system(.callout, design: .default, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(Theme.Palette.nightWarmText.opacity(0.82))
         }
     }
 

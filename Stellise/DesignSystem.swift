@@ -185,6 +185,21 @@ extension View {
     func glassCard(cornerRadius: CGFloat = Theme.Radius.card) -> some View {
         modifier(GlassCard(cornerRadius: cornerRadius))
     }
+
+    /// NightView の睡眠前UI用。暗所で眩しくなりすぎないよう、温白の境界線だけを薄く乗せる。
+    func nightSleepPanel(cornerRadius: CGFloat = 24) -> some View {
+        self
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(
+                Color(hex: "#10101E").opacity(0.26),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Theme.Palette.nightWarmText.opacity(0.09), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 6)
+    }
 }
 
 // MARK: - 押した時に少し縮み、離すとポンと戻るボタン（Flighty等の Spring 押下演出）
