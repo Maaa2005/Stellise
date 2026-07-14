@@ -11,9 +11,11 @@ struct TaskListView: View {
     @State private var orderedTasks: [MyTask] = []
     @State private var draggingTaskID: UUID? = nil
     @State private var dragOffsetY: CGFloat = 0
+    @State private var dragStartOrder: [MyTask] = []
+    @State private var lastDragTargetIndex: Int? = nil
 
     /// カード1枚分の高さ＋spacing の目安。ドラッグ量から何段動かすか判定するのに使う。
-    private let rowHeight: CGFloat = 84
+    private let rowHeight: CGFloat = 88
 
     private var totalRemainingMinutes: Int {
         orderedTasks.reduce(0) { $0 + Int(appState.extractDurationMinutes(from: $1.duration)) }
@@ -27,24 +29,36 @@ struct TaskListView: View {
                 .contentTransition(.numericText(countsDown: true))
                 .animation(.spring(response: 0.5, dampingFraction: 0.9), value: totalRemainingMinutes)
 
-            VStack(spacing: 12) {
+            // 行を通常のVStackレイアウトに任せると、並び替え時にドラッグ中の行自身も
+            // レイアウトアニメーションへ巻き込まれる。絶対位置で配置し、掴んだ行は
+            // 指へ直接追従、他の行だけを移動アニメーションさせる。
+            ZStack(alignment: .top) {
                 ForEach(orderedTasks) { task in
+                    let index = orderedTasks.firstIndex(where: { $0.id == task.id }) ?? 0
+                    let isDragging = draggingTaskID == task.id
+
                     TaskRow(
                         task: task,
-                        isDragging: draggingTaskID == task.id,
+                        isDragging: isDragging,
                         dragGesture: dragGesture(for: task),
                         onComplete: { complete(task) },
                         onFeedbackGood: { onFeedbackGood(task) },
                         onFeedbackBad: { onFeedbackBad(task) }
                     )
-                    .offset(y: draggingTaskID == task.id ? dragOffsetY : 0)
-                    .zIndex(draggingTaskID == task.id ? 1 : 0)
+                    .frame(maxWidth: .infinity)
+                    .offset(y: CGFloat(index) * rowHeight + (isDragging ? dragOffsetY : 0))
+                    .animation(
+                        isDragging ? nil : .spring(response: 0.28, dampingFraction: 0.9),
+                        value: index
+                    )
+                    .zIndex(isDragging ? 1 : 0)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .bottom)),
                         removal: .scale(scale: 0.9).combined(with: .opacity)
                     ))
                 }
             }
+            .frame(height: max(0, CGFloat(orderedTasks.count) * rowHeight - 12), alignment: .top)
         }
         .onAppear { syncOrder() }
         .onChange(of: appState.dailyTasks) { _, _ in
@@ -59,32 +73,41 @@ struct TaskListView: View {
 
     private func dragGesture(for task: MyTask) -> AnyGesture<DragGesture.Value> {
         AnyGesture(
-            DragGesture(minimumDistance: 4)
+            // 行の位置が変わってもtranslationが変化しない、画面固定の座標系を使う。
+            DragGesture(minimumDistance: 4, coordinateSpace: .global)
                 .onChanged { value in
                     if draggingTaskID == nil {
                         draggingTaskID = task.id
+                        dragStartOrder = orderedTasks
+                        lastDragTargetIndex = orderedTasks.firstIndex(where: { $0.id == task.id })
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
-                    dragOffsetY = value.translation.height
 
-                    guard let currentIndex = orderedTasks.firstIndex(where: { $0.id == task.id }) else { return }
-                    let moveBy = Int((dragOffsetY / rowHeight).rounded())
-                    guard moveBy != 0 else { return }
-                    let targetIndex = currentIndex + moveBy
-                    guard targetIndex >= 0, targetIndex < orderedTasks.count else { return }
+                    guard let startIndex = dragStartOrder.firstIndex(where: { $0.id == task.id }) else { return }
+                    let moveBy = Int((value.translation.height / rowHeight).rounded())
+                    let targetIndex = min(max(startIndex + moveBy, 0), dragStartOrder.count - 1)
 
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        orderedTasks.move(
-                            fromOffsets: IndexSet(integer: currentIndex),
-                            toOffset: moveBy > 0 ? targetIndex + 1 : targetIndex
-                        )
-                    }
-                    dragOffsetY -= CGFloat(moveBy) * rowHeight
+                    // 行自体は targetIndex の位置へ移るため、その移動量を指の移動量から引いて
+                    // ドラッグ中のカードが常に指の下に留まるようにする。
+                    dragOffsetY = value.translation.height - CGFloat(targetIndex - startIndex) * rowHeight
+
+                    guard targetIndex != lastDragTargetIndex else { return }
+
+                    var nextOrder = dragStartOrder
+                    let movingTask = nextOrder.remove(at: startIndex)
+                    nextOrder.insert(movingTask, at: targetIndex)
+
+                    orderedTasks = nextOrder
+                    lastDragTargetIndex = targetIndex
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
                 .onEnded { _ in
-                    draggingTaskID = nil
-                    dragOffsetY = 0
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                        draggingTaskID = nil
+                        dragOffsetY = 0
+                    }
+                    dragStartOrder = []
+                    lastDragTargetIndex = nil
                     commitOrder()
                 }
         )

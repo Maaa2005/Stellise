@@ -14,6 +14,9 @@ struct SleepDataView: View {
 
     @State private var isShowingSettings = false
     @State private var isShowingFullReport = false
+    @State private var isShowingAlarmPicker = false
+    @State private var isShowingSoundPicker = false
+    @State private var isShowingPremium = false
     /// ヒーロー・スコア円のアニメ用。onAppearで0→スコアまでリングとカウントを伸ばす。
     @State private var ringProgress: CGFloat = 0
     @State private var countUp: Double = 0
@@ -79,6 +82,41 @@ struct SleepDataView: View {
             SleepReportModalView()
                 .environmentObject(appState)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $isShowingAlarmPicker, onDismiss: saveAndScheduleAlarm) {
+            VStack(spacing: 20) {
+                Text("アラーム設定")
+                    .font(.headline)
+                    .padding(.top)
+
+                DatePicker(
+                    "",
+                    selection: alarmTimeBinding,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+
+                Button("完了") {
+                    isShowingAlarmPicker = false
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+                .padding()
+            }
+            .presentationDetents([.medium])
+        }
+        .confirmationDialog("環境音を選択", isPresented: $isShowingSoundPicker, titleVisibility: .visible) {
+            ForEach(SleepSoundManager.SleepSound.allCases) { sound in
+                Button(sound.rawValue) {
+                    selectSleepSound(sound)
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        }
+        .sheet(isPresented: $isShowingPremium) {
+            PremiumIntroView()
+                .environmentObject(subscriptionManager)
+                .environmentObject(appState)
         }
     }
 
@@ -241,11 +279,40 @@ struct SleepDataView: View {
 
     private var infoChips: some View {
         HStack(spacing: 12) {
-            chip(icon: "bell.fill", label: "アラーム", value: alarmText)
-            chip(icon: "wand.and.stars", label: "スマート",
-                 value: appState.userData.isSmartAlarmEnabled ? "ON" : "OFF")
-            chip(icon: "moon.zzz.fill", label: "環境音",
-                 value: appState.sleepSoundManager.selectedSound.rawValue)
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                isShowingAlarmPicker = true
+            } label: {
+                chip(icon: "bell.fill", label: "アラーム", value: alarmText)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("アラーム時刻を変更")
+
+            Button {
+                appState.userData.isSmartAlarmEnabled.toggle()
+                appState.save()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                chip(icon: "wand.and.stars", label: "スマート",
+                     value: appState.userData.isSmartAlarmEnabled ? "ON" : "OFF")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("スマートアラーム")
+            .accessibilityValue(appState.userData.isSmartAlarmEnabled ? "オン" : "オフ")
+
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if subscriptionManager.isPremium {
+                    isShowingSoundPicker = true
+                } else {
+                    isShowingPremium = true
+                }
+            } label: {
+                chip(icon: "moon.zzz.fill", label: "環境音",
+                     value: appState.sleepSoundManager.selectedSound.rawValue)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("睡眠環境音を変更")
         }
     }
 
@@ -266,6 +333,43 @@ struct SleepDataView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .glassCard(cornerRadius: Theme.Radius.small)
+    }
+
+    private var alarmTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                let components = DateComponents(
+                    hour: appState.userData.alarmHour,
+                    minute: appState.userData.alarmMinute
+                )
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newDate in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                appState.userData.alarmHour = components.hour ?? appState.userData.alarmHour
+                appState.userData.alarmMinute = components.minute ?? appState.userData.alarmMinute
+                appState.userData.isAlarmActive = true
+            }
+        )
+    }
+
+    private func saveAndScheduleAlarm() {
+        appState.save()
+        appState.scheduleMorningAlarm()
+    }
+
+    private func selectSleepSound(_ sound: SleepSoundManager.SleepSound) {
+        let remainingTime = appState.sleepSoundManager.remainingTime
+        let wasPlaying = appState.sleepSoundManager.isPlaying
+
+        appState.sleepSoundManager.selectedSound = sound
+        appState.userData.selectedSleepSound = sound.rawValue
+        appState.save()
+
+        if wasPlaying {
+            appState.sleepSoundManager.playSound(timerDuration: remainingTime)
+        }
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     // MARK: - サマリー/アドバイス・空状態

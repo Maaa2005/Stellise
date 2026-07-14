@@ -21,6 +21,7 @@ struct UserData: Codable, Sendable {
     var travelMode: String = "transit"
     var calendarLinked: Bool = false
     var isSmartAlarmEnabled: Bool = true
+    var selectedSleepSound: String = "焚き火"
     var feedbackHistory: [TaskFeedback] = []
     // Optionalなので過去バージョンの保存データもそのまま読める
     var lastReviewRequestDate: Date? = nil
@@ -31,7 +32,7 @@ struct UserData: Codable, Sendable {
         case userName, bedFirmness, movementThreshold, homeAddress, lastScheduleDate
         case masterTasks, dailyTasks
         case alarmHour, alarmMinute, isAlarmActive
-        case travelMode, calendarLinked, isSmartAlarmEnabled, feedbackHistory
+        case travelMode, calendarLinked, isSmartAlarmEnabled, selectedSleepSound, feedbackHistory
         case lastReviewRequestDate
         case isBedtimeReminderEnabled
     }
@@ -56,6 +57,7 @@ struct UserData: Codable, Sendable {
         self.travelMode = (try? container.decodeIfPresent(String.self, forKey: .travelMode)) ?? "transit"
         self.calendarLinked = (try? container.decodeIfPresent(Bool.self, forKey: .calendarLinked)) ?? false
         self.isSmartAlarmEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .isSmartAlarmEnabled)) ?? true
+        self.selectedSleepSound = (try? container.decodeIfPresent(String.self, forKey: .selectedSleepSound)) ?? "焚き火"
         self.feedbackHistory = (try? container.decodeIfPresent([TaskFeedback].self, forKey: .feedbackHistory)) ?? []
         self.lastReviewRequestDate = (try? container.decodeIfPresent(Date.self, forKey: .lastReviewRequestDate)) ?? nil
         self.isBedtimeReminderEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .isBedtimeReminderEnabled)) ?? true
@@ -76,6 +78,7 @@ struct UserData: Codable, Sendable {
         try container.encode(travelMode, forKey: .travelMode)
         try container.encode(calendarLinked, forKey: .calendarLinked)
         try container.encode(isSmartAlarmEnabled, forKey: .isSmartAlarmEnabled)
+        try container.encode(selectedSleepSound, forKey: .selectedSleepSound)
         try container.encode(feedbackHistory, forKey: .feedbackHistory)
         try container.encode(lastReviewRequestDate, forKey: .lastReviewRequestDate)
         try container.encode(isBedtimeReminderEnabled, forKey: .isBedtimeReminderEnabled)

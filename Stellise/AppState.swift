@@ -159,6 +159,9 @@ class AppState: ObservableObject {
         if let loadedData = AppState.loadUserData(appGroupID: appGroupID) {
             self.userData = loadedData
             self.needsOnboarding = false
+            if let sound = SleepSoundManager.SleepSound(rawValue: loadedData.selectedSleepSound) {
+                self.sleepSoundManager.selectedSound = sound
+            }
             // 当日分のタスクを復元（再起動で朝のタスク・完了状態・並び順が消えないように）。
             // 復元できた日は生成済み扱いにして、起動のたびのAI自動再生成（クォータ消費）も防ぐ。
             if loadedData.lastScheduleDate == AppState.dayKey(Date()), !loadedData.dailyTasks.isEmpty {
@@ -460,18 +463,21 @@ class AppState: ObservableObject {
     private func generateFallbackTasks(departureTime: Date) {
         debugLog("🛡 フォールバック: マスタタスクからスケジュールを自動生成します")
 
-        guard !userData.masterTasks.isEmpty else {
-            debugLog("⚠️ マスタタスクも空です。タスクを生成できません。")
-            // AIも失敗しフォールバックも作れない: 無言で空に戻さず、再試行UI(DayView)を出す
-            Task { @MainActor in self.connectionError = true }
-            return
+        // 初期設定直後などマスタタスクが空でも、生成ボタンが行き止まりにならないよう
+        // 基本の朝ルーティンを使う。ユーザーのマスタタスク自体は勝手に変更しない。
+        let routineTitles = userData.masterTasks.isEmpty
+            ? ["洗面", "着替え", "朝食"]
+            : userData.masterTasks
+
+        if userData.masterTasks.isEmpty {
+            debugLog("ℹ️ マスタタスクが空のため、基本ルーティンでフォールバックします")
         }
         
         var fallbackTasks: [MyTask] = []
         var currentTime = departureTime
         
         // マスタタスクを後ろ（出発直前）から順に配置していく
-        for title in userData.masterTasks.reversed() {
+        for title in routineTitles.reversed() {
             let durationMin = 15 // 仮の所要時間
             let startTime = currentTime.addingTimeInterval(Double(-durationMin * 60))
             
