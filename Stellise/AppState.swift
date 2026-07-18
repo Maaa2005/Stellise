@@ -129,7 +129,13 @@ class AppState: ObservableObject {
             }
     @Published var lastSleepSummary: String? = nil
     @Published var lastSleepAdvice: String? = nil
-    @Published var movementThreshold: Double = 1.9
+    @Published var movementThreshold: Double = 1.9 {
+        didSet {
+            guard userData.movementThreshold != movementThreshold else { return }
+            userData.movementThreshold = movementThreshold
+            save()
+        }
+    }
     
     @Published var routeSummary: String = "確認中..."
     @Published var isTrafficDelayDetected: Bool = false
@@ -151,7 +157,6 @@ class AppState: ObservableObject {
     private var alarmEffectsTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
     private var morningTrafficTimer: Timer?
-    private var snoozeGuardTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - 初期化
@@ -172,6 +177,9 @@ class AppState: ObservableObject {
             self.userData = UserData()
             self.needsOnboarding = true
         }
+        // 設定画面の公開値を永続化モデルから復元する。
+        // property observer は初期化中の代入では呼ばれないため、不要な再保存は発生しない。
+        self.movementThreshold = self.userData.movementThreshold
         setupSensorLink()
         // AudioSession はここでは触らない（起動しただけで他アプリの音楽を止めないため）。
         // アラーム鳴動時 (startAlarmEffects) と録音解析開始時 (SoundAnalyzer) に設定する。
@@ -215,10 +223,6 @@ class AppState: ObservableObject {
     // ==========================================
     // MARK: - スマートスケジュール更新
     // ==========================================
-    
-    // ==========================================
-        // MARK: - スマートスケジュール更新
-        // ==========================================
         
         func refreshSmartSchedule(isPremium: Bool, forceRegenerate: Bool = false) async {
             
@@ -465,20 +469,21 @@ class AppState: ObservableObject {
 
         // 初期設定直後などマスタタスクが空でも、生成ボタンが行き止まりにならないよう
         // 基本の朝ルーティンを使う。ユーザーのマスタタスク自体は勝手に変更しない。
+        // 基本ルーティンは日本人の朝の実態調査（実施率上位）に合わせる。
         let routineTitles = userData.masterTasks.isEmpty
-            ? ["洗面", "着替え", "朝食"]
+            ? ["歯磨き・洗顔", "朝食", "着替え・身支度"]
             : userData.masterTasks
 
         if userData.masterTasks.isEmpty {
             debugLog("ℹ️ マスタタスクが空のため、基本ルーティンでフォールバックします")
         }
-        
+
         var fallbackTasks: [MyTask] = []
         var currentTime = departureTime
-        
+
         // マスタタスクを後ろ（出発直前）から順に配置していく
         for title in routineTitles.reversed() {
-            let durationMin = 15 // 仮の所要時間
+            let durationMin = Self.typicalDuration(for: title)
             let startTime = currentTime.addingTimeInterval(Double(-durationMin * 60))
             
             let task = MyTask(
@@ -492,10 +497,31 @@ class AppState: ObservableObject {
             currentTime = startTime
         }
         
-        Task { @MainActor in
-            self.dailyTasks = fallbackTasks
-            debugLog("✅ フォールバック完了: \(fallbackTasks.count)件のタスクを生成")
+        dailyTasks = fallbackTasks
+        debugLog("✅ フォールバック完了: \(fallbackTasks.count)件のタスクを生成")
+    }
+
+    // 日本人の朝の実態調査に基づく所要時間の目安（分）。
+    // タスク名にキーワードが含まれれば該当時間、無ければ従来どおり15分。
+    private static func typicalDuration(for title: String) -> Int {
+        let durationByKeyword: [(keyword: String, minutes: Int)] = [
+            ("メイク", 15), ("化粧", 15),
+            ("弁当", 15),
+            ("シャワー", 15),
+            ("朝食", 15), ("朝ご飯", 15),
+            ("髪", 10), ("ヘア", 10),
+            ("着替え", 5), ("身支度", 10),
+            ("スキンケア", 5),
+            ("髭", 5),
+            ("歯", 5), ("洗顔", 5), ("顔を洗う", 5), ("洗面", 5),
+            ("ゴミ", 5),
+            ("コーヒー", 5), ("白湯", 3), ("水", 3),
+            ("天気", 5), ("ニュース", 5)
+        ]
+        for entry in durationByKeyword where title.contains(entry.keyword) {
+            return entry.minutes
         }
+        return 15
     }
     
     // ==========================================
@@ -509,17 +535,17 @@ class AppState: ObservableObject {
         let diffSeconds = newDepartureDate.timeIntervalSince(oldDepartureDate)
         
         if diffSeconds >= -60 {
-            recalculateTaskTimes()
             return
         }
         
         debugLog("🚦 渋滞調整: \(Int(diffSeconds / 60))分 短縮します")
         var secondsToCut = abs(diffSeconds)
         let now = Date()
+        var tasks = dailyTasks
         
-        for i in (0..<dailyTasks.count).reversed() {
+        for i in (0..<tasks.count).reversed() {
             if secondsToCut <= 0 { break }
-            var task = dailyTasks[i]
+            let task = tasks[i]
             if task.title == "出発" { continue }
             if task.isCompleted { continue }
             
@@ -531,28 +557,29 @@ class AppState: ObservableObject {
             
             if task.source == "ai" {
                 secondsToCut -= originalDurationSec
-                dailyTasks.remove(at: i)
+                tasks.remove(at: i)
                 debugLog("   🗑 AIタスク削除: \(task.title)")
             } else {
                 if originalDurationSec > 60 {
                     let cutAmount = min(secondsToCut, originalDurationSec - 60)
                     let newDurationMin = Int((originalDurationSec - cutAmount) / 60)
-                    dailyTasks[i].duration = "\(newDurationMin) min"
+                    tasks[i].duration = "\(newDurationMin) min"
                     secondsToCut -= cutAmount
                     debugLog("   ✂️ ルーティン短縮: \(task.title) -> \(newDurationMin)分")
                 }
             }
         }
-        recalculateTaskTimes()
+        recalculateTaskTimes(&tasks)
+        dailyTasks = tasks
     }
     
-    func recalculateTaskTimes() {
-        guard !dailyTasks.isEmpty else { return }
+    private func recalculateTaskTimes(_ tasks: inout [MyTask]) {
+        guard !tasks.isEmpty else { return }
         
         var runningTime: Date? = nil
         let formatter = AppState.hhmmFormatter
 
-        if let firstTimeStr = dailyTasks.first?.time,
+        if let firstTimeStr = tasks.first?.time,
            let date = formatter.date(from: firstTimeStr) {
             
             var comp = Calendar.current.dateComponents([.hour, .minute], from: date)
@@ -563,9 +590,9 @@ class AppState: ObservableObject {
         
         guard var currentTime = runningTime else { return }
         
-        for i in 0..<dailyTasks.count {
-            dailyTasks[i].time = formatter.string(from: currentTime)
-            let durationStr = dailyTasks[i].duration.replacingOccurrences(of: " min", with: "")
+        for i in 0..<tasks.count {
+            tasks[i].time = formatter.string(from: currentTime)
+            let durationStr = tasks[i].duration.replacingOccurrences(of: " min", with: "")
             let durationMin = Double(durationStr) ?? 0
             currentTime = currentTime.addingTimeInterval(durationMin * 60)
         }
@@ -656,19 +683,19 @@ class AppState: ObservableObject {
         // 鳴動中のスヌーズガードアラーム（AlarmKit側）も確実に止める
         try? AlarmManager.shared.stop(id: snoozeGuardAlarmID)
         try? AlarmManager.shared.cancel(id: snoozeGuardAlarmID)
+        snoozeGuardTask?.cancel()
+        snoozeGuardTask = nil
         finalizeSleepReport()
         lastAIGenerationDate = nil
-        Task { await refreshSmartSchedule(isPremium: isPremium, forceRegenerate: true) }
-        startSnoozeGuard()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // 新しい朝のタスクが確定してから、その先頭タスクを基準にガードを開始する。
+            await self.refreshSmartSchedule(isPremium: isPremium, forceRegenerate: true)
+            guard !Task.isCancelled else { return }
+            self.startSnoozeGuard()
+        }
     }
     
-    // ==========================================
-        // MARK: - 最強のスヌーズガード (二度寝防止)
-        // ==========================================
-    // ==========================================
-        // MARK: - スヌーズガード (2度寝防止機能)
-        // ==========================================
-        
         private func startSnoozeGuard() {
             guard let firstTask = dailyTasks.first else { return }
             guard let startTime = parseTime(firstTask.time) else { return }
@@ -895,12 +922,19 @@ class AppState: ObservableObject {
 
     /// アカウント削除時に端末内の全ユーザーデータを消去する
     func resetAllUserData() {
+        cancelMorningAlarm()
+        try? AlarmManager.shared.stop(id: snoozeGuardAlarmID)
+        try? AlarmManager.shared.cancel(id: snoozeGuardAlarmID)
+        snoozeGuardTask?.cancel()
+        snoozeGuardTask = nil
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [bedtimeReminderID])
         userData = UserData()
         dailyTasks = []
         lastSleepScore = 0
         lastSleepSummary = nil
         lastSleepAdvice = nil
         lastAIGenerationDate = nil
+        needsOnboarding = true
         if let url = AppState.getSaveURL(appGroupID: appGroupID) {
             try? FileManager.default.removeItem(at: url)
         }
@@ -1099,10 +1133,9 @@ class AppState: ObservableObject {
         return "良い睡眠リズムです。この調子で同じ時刻の就寝・起床を続けましょう。"
     }
     
-    // ヘルパー
     // ==========================================
-        // MARK: - ヘルパー関数
-        // ==========================================
+    // MARK: - ヘルパー関数
+    // ==========================================
         
     func parseTime(_ timeStr: String) -> Date? {
             guard let date = AppState.hhmmFormatter.date(from: timeStr) else { return nil }
@@ -1126,10 +1159,6 @@ class AppState: ObservableObject {
         return AppState.hhmmFormatter.string(from: date)
     }
     
-    // ==========================================
-        // MARK: - ヘルパー関数
-        // ==========================================
-        
         // ★追加: task.duration (例: "15 min") から数値(15)だけを抜き出す
         func extractDurationMinutes(from durationStr: String) -> Double {
             let durationText = durationStr.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()

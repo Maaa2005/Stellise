@@ -1,8 +1,10 @@
 
 import os
+import re
 import json
 import logging
 import datetime
+from zoneinfo import ZoneInfo
 import requests
 import google.generativeai as genai
 import googlemaps
@@ -94,7 +96,7 @@ def check_daily_quota(uid, kind):
     if not db:
         return True
     limit = DAILY_LIMITS.get(kind, 100)
-    today = datetime.date.today().isoformat()
+    today = datetime.datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
     field = f"{today}_{kind}"
     ref = db.collection("usage").document(uid)
     try:
@@ -132,12 +134,23 @@ def get_weather():
     uid, err = require_auth()
     if err:
         return err
-    if not check_daily_quota(uid, "weather"):
-        return jsonify({"error": "Too Many Requests"}), 429
+
+    try:
+        lat = float(request.args.get("lat"))
+        lon = float(request.args.get("lon"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid coordinates"}), 400
+
+    # NaN/Infinityも範囲比較を満たさないため拒否される。
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return jsonify({"error": "Invalid coordinates"}), 400
+
     if not OPENWEATHER_API_KEY:
         return jsonify({"error": "No API Key"}), 500
+    # 不正リクエストやサーバ設定不備ではクォータを消費しない。
+    if not check_daily_quota(uid, "weather"):
+        return jsonify({"error": "Too Many Requests"}), 429
 
-    lat, lon = request.args.get("lat"), request.args.get("lon")
     url = "https://api.openweathermap.org/data/2.5/weather"
     try:
         resp = requests.get(
@@ -146,9 +159,10 @@ def get_weather():
                     "units": "metric", "lang": "ja"},
             timeout=10,
         )
-        return jsonify(resp.json())
+        return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"OpenWeather Error: {e}")
+        return jsonify({"error": "Internal Error"}), 500
 
 
 # --- 交通時間（要認証＋プレミアム限定。Google Mapsは従量課金のため） ---
@@ -218,6 +232,38 @@ def get_travel_time():
                         "summary": "取得エラー"}), 200
 
 
+# AIが生成しがちな不自然なタスク（起床行為そのもの・朝に行わない行動）を弾く
+BANNED_TASK_KEYWORDS = (
+    "起きる", "起床", "目を覚ます", "アラーム",
+    "湯船", "就寝", "寝る", "夕食", "夕飯",
+)
+
+def sanitize_tasks(tasks):
+    """Geminiの出力から不自然なタスクを除去し、durationを1〜30分に収める"""
+    cleaned = []
+    for t in tasks:
+        if not isinstance(t, dict):
+            continue
+        title = str(t.get("title", "")).strip()
+        if not title or any(k in title for k in BANNED_TASK_KEYWORDS):
+            logger.info(f"タスクを除外: {title!r}")
+            continue
+        time = str(t.get("time", ""))
+        if not re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d", time):
+            continue
+        hour = int(time.split(":", 1)[0])
+        if not 4 <= hour <= 12:
+            continue
+        m = re.search(r"\d+", str(t.get("duration", "")))
+        minutes = max(1, min(int(m.group()), 30)) if m else 5
+        t["duration"] = f"{minutes} min"
+        t.setdefault("source", "ai")
+        cleaned.append(t)
+        if len(cleaned) == 15:
+            break
+    return cleaned
+
+
 # --- AIタスク提案（要認証。無料/有料でモデルとクォータを分ける） ---
 @app.route("/suggest_tasks", methods=["POST"])
 def suggest_tasks():
@@ -279,11 +325,24 @@ def suggest_tasks():
         3. タスクの順番（超重要）:
            提供された「マスタタスク(ルーティン)」の配列の順番を【絶対に】変更せず、上から順番通りにスケジュールを組むこと。AIの判断で勝手に並び替えを行わないでください。
         4. 気遣いタスクの追加:
-           マスタタスクの順番を維持した上で、その前後や合間に、天候や睡眠スコアに合わせた「気遣いタスク（傘を持つ、水を飲む 等）」を自然な流れで追加してください。
+           マスタタスクの順番を維持した上で、その前後や合間に、天候や睡眠スコアに合わせた「気遣いタスク」を自然な流れで追加してください。
+           日本の朝の生活実態に合った提案にすること。例:
+           - 雨・悪天候: 「傘を持つ」「レインコートを出す」
+           - 寒い日: 「白湯を飲む」「コート・マフラーを出す」
+           - 平日: 「ゴミ出し」（日本ではゴミは回収日の朝8時までに出す習慣がある）
+           - 睡眠スコアが高い日: 「軽いストレッチ」「朝の勉強」など前向きな提案
         5. 最初のタスク（超重要）:
            スケジュールの先頭には必ず、起床直後の寝ぼけた頭でも迷わず実行できる1〜3分のマイクロタスク
            （「コップ一杯の水を飲む」「カーテンを開けて日光を浴びる」等）を1つ置くこと。
            起床直後は認知機能が低下しているため、複雑な判断が必要なタスクを先頭に置いてはいけません。
+        6. 所要時間の目安（日本人の朝の実態調査に基づく。各タスクのdurationはこれを基準にすること）:
+           歯磨き・洗顔 2〜5分 / 水・白湯 2〜3分 / 朝食 10〜15分 / 着替え 3〜5分 /
+           ヘアセット 3〜10分 / スキンケア 2〜5分 / メイク 10〜25分 / 髭剃り 3〜5分 /
+           シャワー 10〜15分 / 弁当の準備 10〜20分 / ゴミ出し 3〜5分
+           目安にない気遣いタスク（傘を持つ 等）は1〜5分とすること。30分を超えるdurationは禁止。
+        7. 禁止タスク（超重要）:
+           - 「起きる」「起床する」「目を覚ます」「アラームを止める」など、起床行為そのものは絶対にタスクにしないこと。スケジュールはユーザーがすでに起きた後から始まる。
+           - 「湯船に浸かる」「夕食」「就寝準備」など、日本の朝のルーティンとして不自然な行動を出力しないこと。
 
         【出力ルール】
         - 出発時刻には絶対に間に合わせること。
@@ -311,6 +370,12 @@ def suggest_tasks():
            いかなる場合でも、夜や深夜（20:00〜04:00など）の時間は絶対に出力しないこと。必ず「朝（04:00以降）」の時刻を設定すること。
         3. タスクの順番（超重要）:
            提供された「タスク」の配列の順番を【絶対に】変更せず、リストの上から順番通りにスケジュールを組むこと。AIの判断で勝手に並び替えを行わないでください。
+        4. 所要時間の目安（日本人の朝の実態調査に基づく。durationはこれを基準にすること）:
+           歯磨き・洗顔 2〜5分 / 朝食 10〜15分 / 着替え 3〜5分 / ヘアセット 3〜10分 /
+           メイク 10〜25分 / シャワー 10〜15分 / 弁当の準備 10〜20分 / ゴミ出し 3〜5分
+           30分を超えるdurationは禁止。
+        5. 禁止タスク（超重要）:
+           「起きる」「起床する」「アラームを止める」など起床行為そのものをタスクにしないこと（スケジュールはすでに起きた後から始まる）。
 
         出力: [ {{"title": "...", "time": "HH:MM", "duration": "XX min", "source": "ai"}} ]
         - JSONのみを出力してください。Markdown記法や余計な文章は一切不要です。
@@ -326,7 +391,7 @@ def suggest_tasks():
         # 形式検証: アプリは [{title,time,duration,source}] を期待する
         if not isinstance(tasks, list):
             return jsonify([])
-        return jsonify(tasks)
+        return jsonify(sanitize_tasks(tasks))
     except Exception as e:
         logger.error(f"Gemini Error: {e}")
         # エラー時は空配列 → アプリ側が端末内フォールバック生成に切り替わる
@@ -357,7 +422,8 @@ def upload_sleep_log():
         db.collection("users").document(uid).collection("sleep_logs").document(date_key).set(payload)
         return jsonify({"status": "saved"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Sleep log upload error: {e}")
+        return jsonify({"error": "Internal Error"}), 500
 
 
 if __name__ == "__main__":

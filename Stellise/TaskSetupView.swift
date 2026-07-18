@@ -24,127 +24,147 @@ struct TaskSetupView: View {
     // focusedField が .newTask ならキーボード表示、nil なら非表示
     @FocusState private var focusedField: FocusedField?
 
-        
-        // ★追加: アラートと画面遷移の制御フラグ
-        @State private var showAIAlert = false
-        @State private var navigateToCalendar = false
+    // アラートと画面遷移の制御フラグ
+    @State private var showAIAlert = false
+    @State private var navigateToCalendar = false
     
-    // Kivyの ScrollView(do_scroll_x=True) に相当するタスク例
+    // 初期設定で選びやすい代表的な朝のタスク
+    // （マイボイスコム「朝の時間の過ごし方」等の調査で実施率が高い順）
     let taskExamples = [
-        "顔を洗う", "朝ご飯を食べる", "コーヒーを飲む",
-        "シャワーを浴びる", "着替える", "歯を磨く"
+        "歯を磨く", "顔を洗う",
+        "水・白湯を飲む", "朝ご飯を食べる",
+        "着替える", "髪を整える",
+        "スキンケア", "メイクをする",
+        "髭を剃る", "コーヒーを飲む",
+        "シャワーを浴びる", "ゴミ出し",
+        "お弁当を作る", "天気・ニュースを見る"
     ]
     
     // -----------------------------------------------------------------
     // UI（見た目）の定義
     // -----------------------------------------------------------------
     var body: some View {
-        VStack {
-            Text("ステップ 4 / 5")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top)
+        ZStack {
+            OnboardingBackground()
 
-            VStack(spacing: 20) {
-                Text("あなたの一般的な\nタスクは何ですか？")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 10)
+            VStack(spacing: 0) {
+                OnboardingProgressHeader(step: 4, total: 5)
 
-                Text("以下の例をタップするか、独自に追加してください。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-                
-                // --- Kivyのタスク例 ScrollView に相当 ---
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(taskExamples, id: \.self) { taskName in
-                            Button(action: {
-                                // ボタンが押されたらリストに追加
-                                addTask(name: taskName)
-                            }) {
-                                Text(taskName)
-                                    .font(.footnote)
-                                    .padding(10)
-                                    .background(Color(.systemGray5))
-                                    .cornerRadius(8)
+                ScrollView {
+                    VStack(spacing: 18) {
+                        OnboardingHero(
+                            symbol: "checklist",
+                            title: "朝のルーティン",
+                            description: "毎朝することを選んでください。\n選んだ順番でルーティンを作成します。"
+                        )
+                        .padding(.top, 16)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("候補から選ぶ")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                Text("タップで追加・解除")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
                             }
-                            .buttonStyle(.plain) // ボタンのデフォルトの青色を消す
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-                
-                // --- Kivyの MDTextField + MDRaisedButton("追加") に相当 ---
-                HStack {
-                    TextField("新しいタスクを入力", text: $newTaskTitle)
-                        .textFieldStyle(.roundedBorder)
-                        // ★★★ TextField と FocusState を紐付ける ★★★
-                        .focused($focusedField, equals: .newTask)
-                        // (オプション: Enterキーでも追加できるようにする)
-                        .onSubmit {
-                            onAddTask()
-                        }
-                    
-                    Button("追加") {
-                        // ★★★ onAddTask 関数を呼び出す ★★★
-                        onAddTask()
-                    }
-                    .disabled(newTaskTitle.isEmpty) // 空欄なら無効化
-                }
-                .padding(.horizontal)
 
-                // --- ルーティン一覧（並べ替え・削除対応）---
-                List {
-                    ForEach($appState.userData.masterTasks, id: \.self) { $taskName in
-                        HStack(spacing: 10) {
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundStyle(.secondary)
-                            Text(taskName)
+                            LazyVGrid(columns: taskGridColumns, spacing: 10) {
+                                ForEach(taskExamples, id: \.self) { taskName in
+                                    taskChoiceButton(taskName)
+                                }
+                            }
                         }
-                    }
-                    .onDelete(perform: deleteTask)
-                    .onMove(perform: moveTask)
-                }
-                .listStyle(.inset)
-                .environment(\.editMode, .constant(.active))
-                
-                // "次へ" ボタン (CalendarLinkScreenへ)
-                // ★★★ 修正: "次へ" ボタン (AI同意アラート付き) ★★★
-                                Button(action: {
-                                    focusedField = nil // キーボードを閉じる
-                                    appState.save()
-                                    debugLog("タスクリストを保存しました。")
-                                    // 同意アラートを表示する
-                                    showAIAlert = true
-                                }) {
-                                    Text("次へ")
-                                        .fontWeight(.semibold)
-                                        .frame(width: 300, height: 50)
-                                        .background(Color.appAccent)
-                                        .foregroundStyle(Color.white)
-                                        .cornerRadius(10)
-                                }
-                                .padding(.top, 10)
-                                .alert("AI機能のデータ利用について", isPresented: $showAIAlert) {
-                                    Button("キャンセル", role: .cancel) { }
-                                    Button("同意する") {
-                                        // 同意したら次の画面へ進むフラグをオン
-                                        navigateToCalendar = true
+                        .onboardingCard()
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("ほかのタスクを追加")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+
+                            HStack(spacing: 10) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundStyle(Theme.Palette.accentLight)
+                                TextField("例：薬を飲む", text: $newTaskTitle)
+                                    .focused($focusedField, equals: .newTask)
+                                    .submitLabel(.done)
+                                    .onSubmit(onAddTask)
+
+                                Button("追加", action: onAddTask)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(isNewTaskValid ? Theme.Palette.accentLight : .white.opacity(0.3))
+                                    .disabled(!isNewTaskValid)
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 52)
+                            .background(Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.10)))
+                        }
+                        .onboardingCard()
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("選んだタスク")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                Text("\(appState.userData.masterTasks.count)件")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(Theme.Palette.accentLight)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Theme.Palette.accent.opacity(0.18), in: Capsule())
+                            }
+
+                            if appState.userData.masterTasks.isEmpty {
+                                Label("上の候補からタスクを選んでください", systemImage: "hand.tap")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                                    .frame(maxWidth: .infinity, minHeight: 72)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(Array(appState.userData.masterTasks.enumerated()), id: \.element) { index, taskName in
+                                        selectedTaskRow(taskName, at: index)
                                     }
-                                } message: {
-                                    Text("StelliseのAI機能（タスク提案など）を利用するため、あなたのタスク名やカレンダーの予定を、安全な通信で第三者のAIサービス（Google Gemini）へ送信します。データは回答生成のみに使用されます。")
                                 }
-                                // アラートで同意した時だけ CalendarLinkView へ遷移
-                                .navigationDestination(isPresented: $navigateToCalendar) {
-                                    CalendarLinkView()
-                                }
+                            }
+                        }
+                        .onboardingCard()
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 18)
+                }
+
+                VStack(spacing: 0) {
+                    Divider().overlay(Color.white.opacity(0.08))
+                    Button {
+                        focusedField = nil
+                        appState.save()
+                        debugLog("タスクリストを保存しました。")
+                        showAIAlert = true
+                    } label: {
+                        OnboardingPrimaryLabel(title: "次へ")
+                    }
+                    .buttonStyle(PressSpringButtonStyle())
+                    .padding(.horizontal, 24)
+                    .padding(.top, 12)
+                    .padding(.bottom, 10)
+                    .alert("AI機能のデータ利用について", isPresented: $showAIAlert) {
+                        Button("キャンセル", role: .cancel) { }
+                        Button("同意する") { navigateToCalendar = true }
+                    } message: {
+                        Text("StelliseのAI機能（タスク提案など）を利用するため、あなたのタスク名やカレンダーの予定を、安全な通信で第三者のAIサービス（Google Gemini）へ送信します。データは回答生成のみに使用されます。")
+                    }
+                    .navigationDestination(isPresented: $navigateToCalendar) {
+                        CalendarLinkView()
+                    }
+                }
+                .background(Color(hex: "#0C0C18").opacity(0.96))
             }
-            .padding(.bottom)
         }
-        .navigationTitle("タスク設定")
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     // -----------------------------------------------------------------
@@ -166,6 +186,85 @@ struct TaskSetupView: View {
         // (3) TextFieldをクリア
         newTaskTitle = ""
     }
+
+    private var isNewTaskValid: Bool {
+        !newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private let taskGridColumns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    @ViewBuilder
+    private func taskChoiceButton(_ taskName: String) -> some View {
+        let isSelected = appState.userData.masterTasks.contains(taskName)
+        Button {
+            withAnimation(.easeOut(duration: 0.18)) {
+                toggleTask(name: taskName)
+            }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isSelected ? Theme.Palette.accentLight : .white.opacity(0.38))
+                Text(taskName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .background(
+                isSelected ? Theme.Palette.accent.opacity(0.22) : Color.white.opacity(0.055),
+                in: RoundedRectangle(cornerRadius: 14)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Theme.Palette.accentLight.opacity(0.65) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(taskName)、\(isSelected ? "選択済み" : "未選択")")
+    }
+
+    private func selectedTaskRow(_ taskName: String, at index: Int) -> some View {
+        HStack(spacing: 10) {
+            Text("\(index + 1)")
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(Theme.Palette.accentLight)
+                .frame(width: 26, height: 26)
+                .background(Theme.Palette.accent.opacity(0.18), in: Circle())
+
+            Text(taskName)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button { moveTask(at: index, by: -1) } label: {
+                Image(systemName: "chevron.up")
+            }
+            .disabled(index == 0)
+            .opacity(index == 0 ? 0.25 : 0.75)
+
+            Button { moveTask(at: index, by: 1) } label: {
+                Image(systemName: "chevron.down")
+            }
+            .disabled(index == appState.userData.masterTasks.count - 1)
+            .opacity(index == appState.userData.masterTasks.count - 1 ? 0.25 : 0.75)
+
+            Button(role: .destructive) { removeTask(name: taskName) } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(Color.red.opacity(0.85))
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 48)
+        .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+    }
     
     // タスク例のボタンから呼ばれる
     private func addTask(name: String) {
@@ -174,13 +273,24 @@ struct TaskSetupView: View {
             appState.userData.masterTasks.append(trimmedName)
         }
     }
-    
-    private func deleteTask(at offsets: IndexSet) {
-        appState.userData.masterTasks.remove(atOffsets: offsets)
+
+    private func toggleTask(name: String) {
+        if appState.userData.masterTasks.contains(name) {
+            removeTask(name: name)
+        } else {
+            addTask(name: name)
+        }
     }
 
-    private func moveTask(from source: IndexSet, to destination: Int) {
-        appState.userData.masterTasks.move(fromOffsets: source, toOffset: destination)
+    private func removeTask(name: String) {
+        appState.userData.masterTasks.removeAll { $0 == name }
+    }
+
+    private func moveTask(at index: Int, by offset: Int) {
+        let destination = index + offset
+        guard appState.userData.masterTasks.indices.contains(index),
+              appState.userData.masterTasks.indices.contains(destination) else { return }
+        appState.userData.masterTasks.swapAt(index, destination)
     }
 }
 
