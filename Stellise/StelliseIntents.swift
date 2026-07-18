@@ -3,6 +3,7 @@ import AppIntents
 
 // ★ 修正1: saveURLプロパティを削除し、関数内で生成するように変更
 // これで変数の競合エラーが消えます
+@MainActor
 struct SharedDataLoader: Sendable {
     private static let appGroupID = "group.com.stellise"
     
@@ -12,17 +13,15 @@ struct SharedDataLoader: Sendable {
             .appendingPathComponent("my_routines.json")
     }
     
-    // nonisolated をつけて、どこからでも呼べるようにする
-    nonisolated static func loadUserData() -> UserData? {
+    static func loadUserData() -> UserData? {
         // 関数内でURLを取得
         guard let url = getSaveURL(), let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(UserData.self, from: data)
     }
     
-    // nonisolated をつけて、どこからでも呼べるようにする
-    nonisolated static func save(_ data: UserData) {
+    static func save(_ data: UserData) {
         guard let url = getSaveURL() else { return }
-        try? JSONEncoder().encode(data).write(to: url)
+        try? JSONEncoder().encode(data).write(to: url, options: .atomic)
     }
 }
 
@@ -33,7 +32,7 @@ struct ReadTasksIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         // static メソッドを直接呼ぶ
-        if let data = SharedDataLoader.loadUserData() {
+        if let data = await SharedDataLoader.loadUserData() {
             if let nextTask = data.dailyTasks.first(where: { !$0.isCompleted }) {
                 let timeText = formatTime(nextTask.time)
                 let dialogString = "次のタスクは、\(timeText)、\(nextTask.title)、です。"
@@ -63,7 +62,7 @@ struct CompleteTaskIntent: AppIntent {
     static var description = IntentDescription("現在のタスクを完了済みにします。")
 
     func perform() async throws -> some IntentResult {
-        guard var data = SharedDataLoader.loadUserData() else {
+        guard var data = await SharedDataLoader.loadUserData() else {
             return .result(dialog: "データが見つかりません。")
         }
         
@@ -71,7 +70,7 @@ struct CompleteTaskIntent: AppIntent {
             let taskTitle = data.dailyTasks[index].title
             data.dailyTasks[index].isCompleted = true
             
-            SharedDataLoader.save(data)
+            await SharedDataLoader.save(data)
             
             return .result(dialog: IntentDialog(stringLiteral: "\(taskTitle)を完了しました。次はどうしますか？"))
         }

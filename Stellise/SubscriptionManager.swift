@@ -53,7 +53,9 @@ class SubscriptionManager: ObservableObject {
                     // 状態を最新に更新
                     await self.updateStatus()
                 } catch {
-                    debugLog("❌ トランザクションの検証に失敗しました")
+                    await MainActor.run {
+                        debugLog("❌ トランザクションの検証に失敗しました")
+                    }
                 }
             }
         }
@@ -120,24 +122,17 @@ class SubscriptionManager: ObservableObject {
             }
         }
         
-        // 2. StoreKitで有効ならFirestoreへ同期する
+        // 2. StoreKitの検証結果をFirestoreへ同期する。
+        //    false も書かないと、解約後もサーバ側が永久に有効扱いする。
         //    （サーバ側 /get_travel_time・執事モードは Firestore の isPremium で判定するため、
         //      ここで書いておかないと正規のプレミアムユーザーがサーバ機能を使えない）
-        if active, let user = Auth.auth().currentUser {
+        if let user = Auth.auth().currentUser {
             try? await db.collection("users").document(user.uid)
-                .setData(["isPremium": true,
+                .setData(["isPremium": active,
                           "premiumCheckedAt": FieldValue.serverTimestamp()], merge: true)
         }
 
-        // 3. Fallback: StoreKitで確認できなければFirestoreを確認 (プロモ付与・クロスプラットフォーム用)
-        if !active, let user = Auth.auth().currentUser {
-            if let doc = try? await db.collection("users").document(user.uid).getDocument(),
-               let isPrem = doc.data()?["isPremium"] as? Bool, isPrem {
-                active = true
-            }
-        }
-
-        // メインスレッドでUIを更新
+        // UIはAppleが署名済みの現在の権利だけを信頼する。
         self.isPremium = active
         debugLog("👑 プレミアム状態チェック: \(active ? "有効" : "無効")")
     }

@@ -7,7 +7,7 @@ import AudioToolbox
 import CoreLocation
 import FirebaseAuth
 import MapKit
-import UserNotifications
+@preconcurrency import UserNotifications
 import AlarmKit
 import WidgetKit
 
@@ -24,7 +24,6 @@ struct TaskFeedback: Codable, Hashable {
 // ==========================================
 
 struct TaskSuggestionRequest: Encodable {
-    let user_name: String
     let weather_info: WeatherInfoForAI?
     let sleep_score: Int
     let calendar_events: [CalendarEventForAI]
@@ -133,7 +132,11 @@ class AppState: ObservableObject {
         didSet {
             guard userData.movementThreshold != movementThreshold else { return }
             userData.movementThreshold = movementThreshold
-            save()
+            save(reloadWidgets: false)
+            if sensorManager.isDetecting {
+                sensorManager.stopDetection()
+                sensorManager.startDetection(threshold: movementThreshold)
+            }
         }
     }
     
@@ -180,6 +183,14 @@ class AppState: ObservableObject {
         // 設定画面の公開値を永続化モデルから復元する。
         // property observer は初期化中の代入では呼ばれないため、不要な再保存は発生しない。
         self.movementThreshold = self.userData.movementThreshold
+        self.sleepSessionStart = self.userData.sleepSessionStart
+        self.nightlySnoreCount = self.userData.nightlySnoreCount
+        self.nightlyMovementCount = self.userData.nightlyMovementCount
+        if let latestReport = self.userData.sleepReports.max(by: { $0.date < $1.date }) {
+            self.lastSleepScore = latestReport.score
+            self.lastSleepSummary = latestReport.summary
+            self.lastSleepAdvice = latestReport.advice
+        }
         setupSensorLink()
         // AudioSession はここでは触らない（起動しただけで他アプリの音楽を止めないため）。
         // アラーム鳴動時 (startAlarmEffects) と録音解析開始時 (SoundAnalyzer) に設定する。
@@ -343,6 +354,7 @@ class AppState: ObservableObject {
                             self.userData.alarmMinute = m
                             self.userData.isAlarmActive = true
                             self.save()
+                            self.scheduleMorningAlarm()
                         }
                     }
                 } else {
@@ -402,7 +414,6 @@ class AppState: ObservableObject {
             }
             
             let reqBody = TaskSuggestionRequest(
-                user_name: userData.userName,
                 weather_info: weatherInfoForAI,
                 sleep_score: lastSleepScore,
                 calendar_events: calendarEventsForAI,
@@ -678,8 +689,10 @@ class AppState: ObservableObject {
         audioPlayer?.stop()
         selectedTab = 0
         sensorManager.stopDetection()
-        Task { await soundAnalyzer.stopAnalyzing() }
-        cancelMorningAlarm()
+        Task { soundAnalyzer.stopAnalyzing() }
+        // 毎日繰り返し予約は残し、現在鳴っている回だけを停止する。
+        // cancelMorningAlarm() を呼ぶと翌日以降も消えてしまう。
+        try? AlarmManager.shared.stop(id: morningAlarmID)
         // 鳴動中のスヌーズガードアラーム（AlarmKit側）も確実に止める
         try? AlarmManager.shared.stop(id: snoozeGuardAlarmID)
         try? AlarmManager.shared.cancel(id: snoozeGuardAlarmID)
@@ -904,13 +917,15 @@ class AppState: ObservableObject {
         save()
     }
 
-    func save() {
+    func save(reloadWidgets: Bool = true) {
         guard let url = AppState.getSaveURL(appGroupID: appGroupID) else { return }
         do {
             let encoded = try JSONEncoder().encode(userData)
-            try encoded.write(to: url)
+            try encoded.write(to: url, options: .atomic)
             // アラーム時刻の変更をホーム画面ウィジェットに即反映
-            WidgetCenter.shared.reloadAllTimelines()
+            if reloadWidgets {
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         } catch { debugLog("❌ 保存エラー: \(error)") }
     }
     
@@ -918,6 +933,34 @@ class AppState: ObservableObject {
         guard let url = getSaveURL(appGroupID: appGroupID),
               let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(UserData.self, from: data)
+    }
+
+    /// Siri/App IntentがApp Groupのタスクを更新した後、フォアグラウンド復帰時に取り込む。
+    func reloadSharedUserData() {
+        guard let loaded = AppState.loadUserData(appGroupID: appGroupID) else { return }
+        userData = loaded
+        movementThreshold = loaded.movementThreshold
+        if loaded.lastScheduleDate == AppState.dayKey(Date()) {
+            dailyTasks = loaded.dailyTasks
+        } else {
+            dailyTasks = []
+        }
+    }
+
+    /// サーバ側のサブコレクションと認証ユーザーを一括削除する。
+    func deleteRemoteAccount() async throws {
+        guard let user = Auth.auth().currentUser else { return }
+        let token = try await user.getIDToken()
+        guard let url = URL(string: "\(serverBaseURL)/delete_account") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
     }
 
     /// アカウント削除時に端末内の全ユーザーデータを消去する
@@ -929,6 +972,7 @@ class AppState: ObservableObject {
         snoozeGuardTask = nil
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [bedtimeReminderID])
         userData = UserData()
+        movementThreshold = userData.movementThreshold
         dailyTasks = []
         lastSleepScore = 0
         lastSleepSummary = nil
@@ -964,19 +1008,25 @@ class AppState: ObservableObject {
     
     func handleMovement(_ intensity: Double) {
         // 夜間セッション中は体動を記録（睡眠レポート用）
-        if sleepSessionStart != nil { nightlyMovementCount += 1 }
+        if sleepSessionStart != nil {
+            nightlyMovementCount += 1
+            userData.nightlyMovementCount = nightlyMovementCount
+            save(reloadWidgets: false)
+        }
 
         guard isSmartAlarmWindow, !smartAlarmTriggered else { return }
-        if intensity > 2.5 {
-            debugLog("💤 浅い睡眠検知 -> スマートアラーム発動")
-            smartAlarmTriggered = true
-            isAlarmRinging = true
-            startAlarmEffects()
-        }
+        debugLog("💤 浅い睡眠検知 -> スマートアラーム発動")
+        smartAlarmTriggered = true
+        isAlarmRinging = true
+        startAlarmEffects()
     }
     func handleSoundDetection(_ sound: String) {
             // 夜間セッション中はいびきを記録（睡眠レポート用）
-            if sound == "Snoring", sleepSessionStart != nil { nightlySnoreCount += 1 }
+            if sound == "Snoring", sleepSessionStart != nil {
+                nightlySnoreCount += 1
+                userData.nightlySnoreCount = nightlySnoreCount
+                save(reloadWidgets: false)
+            }
 
             guard isSmartAlarmWindow, !smartAlarmTriggered else { return }
             
@@ -1088,17 +1138,28 @@ class AppState: ObservableObject {
         sleepSessionStart = Date()
         nightlySnoreCount = 0
         nightlyMovementCount = 0
+        userData.sleepSessionStart = sleepSessionStart
+        userData.nightlySnoreCount = 0
+        userData.nightlyMovementCount = 0
+        save(reloadWidgets: false)
         debugLog("🌙 睡眠セッション開始: いびき・体動の記録をリセット")
     }
 
     /// アラーム停止時に呼ぶ。夜間に集計したいびき・体動からスコアを算出する。
     private func finalizeSleepReport() {
         guard let start = sleepSessionStart else { return }
+        let end = Date()
         sleepSessionStart = nil
 
-        let hours = Date().timeIntervalSince(start) / 3600
+        let hours = end.timeIntervalSince(start) / 3600
         // 就床10分未満（動作確認など）はレポート対象にしない
-        guard hours >= (10.0 / 60.0) else { return }
+        guard hours >= (10.0 / 60.0) else {
+            userData.sleepSessionStart = nil
+            userData.nightlySnoreCount = 0
+            userData.nightlyMovementCount = 0
+            save(reloadWidgets: false)
+            return
+        }
 
         let movementsPerHour = Double(nightlyMovementCount) / max(hours, 0.1)
 
@@ -1115,6 +1176,22 @@ class AppState: ObservableObject {
         let hoursText = String(format: "%.1f", hours)
         lastSleepSummary = "就床時間は約\(hoursText)時間。体動を\(nightlyMovementCount)回、いびきを\(nightlySnoreCount)回検知しました。"
         lastSleepAdvice = makeSleepAdvice(hours: hours, movementsPerHour: movementsPerHour, snores: nightlySnoreCount)
+        let report = SleepReport(
+            date: end,
+            startDate: start,
+            endDate: end,
+            score: lastSleepScore,
+            movementCount: nightlyMovementCount,
+            snoreCount: nightlySnoreCount,
+            summary: lastSleepSummary ?? "",
+            advice: lastSleepAdvice ?? ""
+        )
+        userData.sleepReports.append(report)
+        userData.sleepReports = Array(userData.sleepReports.sorted { $0.date < $1.date }.suffix(30))
+        userData.sleepSessionStart = nil
+        userData.nightlySnoreCount = 0
+        userData.nightlyMovementCount = 0
+        save(reloadWidgets: false)
         pendingSleepReportModal = true
 
         debugLog("📊 睡眠レポート確定: score=\(lastSleepScore), 体動=\(nightlyMovementCount), いびき=\(nightlySnoreCount)")
@@ -1174,7 +1251,7 @@ class AppState: ObservableObject {
     func requestNotificationPermission() {
         Task {
             do {
-                try await AlarmManager.shared.requestAuthorization()
+                _ = try await AlarmManager.shared.requestAuthorization()
                 debugLog("✅ AlarmKit: 許可が得られました")
             } catch {
                 debugLog("❌ AlarmKit: 許可エラー: \(error.localizedDescription)")
@@ -1188,13 +1265,6 @@ class AppState: ObservableObject {
         // アラーム変更のたびに就寝リマインダーも追従させる（アラームOFF時は内部で解除される）
         scheduleBedtimeReminder()
         guard userData.isAlarmActive else { return }
-
-        let calendar = Calendar.current
-        var comp = calendar.dateComponents([.year, .month, .day], from: Date())
-        comp.hour   = userData.alarmHour
-        comp.minute = userData.alarmMinute
-        guard let alarmDate = calendar.date(from: comp) else { return }
-        let targetDate = alarmDate < Date() ? alarmDate.addingTimeInterval(86400) : alarmDate
 
         Task {
             do {
@@ -1213,11 +1283,14 @@ class AppState: ObservableObject {
                     tintColor: .purple
                 )
                 let configuration = AlarmManager.AlarmConfiguration<StelliSeAlarmMetadata>.alarm(
-                    schedule: .fixed(targetDate),
+                    schedule: .relative(.init(
+                        time: .init(hour: userData.alarmHour, minute: userData.alarmMinute),
+                        repeats: .weekly([.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday])
+                    )),
                     attributes: attributes
                 )
                 _ = try await AlarmManager.shared.schedule(id: morningAlarmID, configuration: configuration)
-                debugLog("✅ AlarmKit: アラームを \(targetDate) にセット完了")
+                debugLog("✅ AlarmKit: 毎日 \(userData.alarmHour):\(userData.alarmMinute) にセット完了")
             } catch {
                 debugLog("❌ AlarmKit: アラームのセット失敗: \(error.localizedDescription)")
             }

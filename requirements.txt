@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+firebase-admin>=6.5,<8
+google-genai>=1.0,<2
+googlemaps>=4.10,<5
+requests>=2.31,<3

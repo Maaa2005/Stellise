@@ -1,259 +1,228 @@
 import Foundation
 import AVFoundation
 import Combine
-import TensorFlowLite
+@preconcurrency import TensorFlowLite
+
+/// TensorFlow Liteの状態を専用キューへ閉じ込める。
+/// InterpreterはSendableではないため、読み込み完了後の操作を専用キューに直列化する。
+private final class SoundInferenceWorker: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.stellise.TFLiteAnalysisQueue")
+    private let interpreter: Interpreter
+    private let classNames: [String]
+    private let requiredSampleCount = 15_600
+    private var audioBuffer: [Float] = []
+
+    private init(interpreter: Interpreter, classNames: [String]) {
+        self.interpreter = interpreter
+        self.classNames = classNames
+    }
+
+    static func load() async throws -> SoundInferenceWorker {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue(label: "com.stellise.TFLiteLoader", qos: .userInitiated).async {
+                do {
+                    guard let modelPath = Bundle.main.path(forResource: "yamnet", ofType: "tflite") else {
+                        throw NSError(domain: "SoundAnalyzer", code: 1, userInfo: [NSLocalizedDescriptionKey: "yamnet.tflite が見つかりません。"])
+                    }
+                    guard let labelsPath = Bundle.main.path(forResource: "yamnet", ofType: "txt") else {
+                        throw NSError(domain: "SoundAnalyzer", code: 2, userInfo: [NSLocalizedDescriptionKey: "yamnet.txt が見つかりません。"])
+                    }
+
+                    let interpreter = try Interpreter(modelPath: modelPath)
+                    try interpreter.allocateTensors()
+                    let labels = try parseLabels(at: labelsPath)
+                    continuation.resume(returning: SoundInferenceWorker(interpreter: interpreter, classNames: labels))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func append(_ samples: [Float], onDetection: @escaping @Sendable (String, Float) -> Void) {
+        queue.async { [self] in
+            audioBuffer.append(contentsOf: samples)
+            while audioBuffer.count >= requiredSampleCount {
+                let chunk = Array(audioBuffer.prefix(requiredSampleCount))
+                audioBuffer.removeFirst(requiredSampleCount)
+                if let detection = analyze(chunk) {
+                    onDetection(detection.label, detection.score)
+                }
+            }
+        }
+    }
+
+    func reset() {
+        queue.async { [self] in audioBuffer.removeAll(keepingCapacity: true) }
+    }
+
+    private func analyze(_ audioData: [Float]) -> (label: String, score: Float)? {
+        do {
+            let tensorData = audioData.withUnsafeBufferPointer { Data(buffer: $0) }
+            try interpreter.copy(tensorData, toInputAt: 0)
+            try interpreter.invoke()
+
+            let output = try interpreter.output(at: 0)
+            let scores = output.data.withUnsafeBytes {
+                Array(UnsafeBufferPointer<Float32>(
+                    start: $0.baseAddress?.assumingMemoryBound(to: Float32.self),
+                    count: classNames.count
+                ))
+            }
+            guard let (index, score) = scores.enumerated().max(by: { $0.1 < $1.1 }),
+                  index < classNames.count,
+                  score > 0.4 else { return nil }
+
+            let label = classNames[index]
+            guard ["Snoring", "Cough", "Speech", "Gasp"].contains(label) else { return nil }
+            return (label, score)
+        } catch {
+            debugLog("❌ TFLite 推論エラー: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func parseLabels(at path: String) throws -> [String] {
+        let content = try String(contentsOfFile: path, encoding: .utf8)
+        return content.split(whereSeparator: \.isNewline).dropFirst().compactMap { line in
+            var columns: [String] = []
+            var current = ""
+            var inQuotes = false
+            for character in line {
+                if character == "\"" {
+                    inQuotes.toggle()
+                } else if character == "," && !inQuotes {
+                    columns.append(current)
+                    current = ""
+                } else {
+                    current.append(character)
+                }
+            }
+            columns.append(current)
+            guard columns.count > 2 else { return nil }
+            return columns[2].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        }
+    }
+}
+
+private final class ConverterInputState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var delivered = false
+
+    func shouldProvideInput() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !delivered else { return false }
+        delivered = true
+        return true
+    }
+}
 
 @MainActor
-class SoundAnalyzer: NSObject, ObservableObject {
-    
-    @Published var lastDetectedSound: String? = nil
-    @Published var isAnalyzing: Bool = false
-    
-    private var interpreter: Interpreter?
-    private var classNames: [String] = []
+final class SoundAnalyzer: NSObject, ObservableObject {
+    @Published var lastDetectedSound: String?
+    @Published private(set) var isAnalyzing = false
 
     private var audioEngine: AVAudioEngine?
-    private let analysisQueue = DispatchQueue(label: "com.stellise.TFLiteAnalysisQueue")
-
-    private let sampleRate = 16000.0
-    private let requiredSampleCount = 15600
-    private var audioBuffer: [Float] = []
-    
-    private var isModelLoaded = false
-    private var debugCounter = 0
+    private var worker: SoundInferenceWorker?
+    private var lifecycleID = UUID()
+    private let sampleRate = 16_000.0
 
     override init() {
         super.init()
         debugLog("SoundAnalyzerが初期化されました。")
     }
 
-    private func loadModelAndLabels() async throws {
-        guard !isModelLoaded else { return }
-        
-        debugLog("TFLite: モデルとラベルの非同期ロードを開始します...")
-        
-        try await Task(priority: .userInitiated) {
-            
-            guard let modelPath = Bundle.main.path(forResource: "yamnet", ofType: "tflite") else {
-                throw NSError(domain: "SoundAnalyzer", code: 1, userInfo: [NSLocalizedDescriptionKey: "yamnet.tflite が見つかりません。"])
-            }
-            let interpreter = try Interpreter(modelPath: modelPath)
-            try interpreter.allocateTensors()
-            
-            guard let labelsPath = Bundle.main.path(forResource: "yamnet", ofType: "txt") else {
-                throw NSError(domain: "SoundAnalyzer", code: 2, userInfo: [NSLocalizedDescriptionKey: "yamnet.txt が見つかりません。"])
-            }
-            let content = try String(contentsOfFile: labelsPath, encoding: .utf8)
-            var classNames: [String] = []
+    func startAnalyzing() async {
+        guard !isAnalyzing else { return }
+        let runID = UUID()
+        lifecycleID = runID
 
-            var lineIndex = 0
-            content.enumerateLines { line, _ in
-                guard lineIndex > 0 else {
-                    lineIndex += 1
-                    return
-                }
-                
-                var columns: [String] = []
-                var currentColumn = ""
-                var inQuotes = false
-                
-                for char in line {
-                    if char == "\"" {
-                        inQuotes.toggle()
-                    } else if char == "," && !inQuotes {
-                        columns.append(currentColumn)
-                        currentColumn = ""
-                    } else {
-                        currentColumn.append(char)
-                    }
-                }
-                columns.append(currentColumn)
-                
-                if columns.count > 2 {
-                    let className = columns[2].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                    classNames.append(className)
-                }
-                lineIndex += 1
-            }
-
-            self.analysisQueue.async {
-                self.interpreter = interpreter
-                self.classNames = classNames
-                self.isModelLoaded = true
-                
-                DispatchQueue.main.async {
-                    debugLog("✅ TFLite: モデルとラベルのロードに成功しました。 (\(classNames.count) 件)")
-                }
-            }
-        }.value
-    }
-    
-    // ==========================================
-        // MARK: - 音声分析の開始 (ダウンサンプリング対応版)
-        // ==========================================
-        func startAnalyzing() async {
-            let permission = AVAudioSession.sharedInstance().recordPermission
-                    if permission == .undetermined {
-                        await withCheckedContinuation { continuation in
-                            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                                continuation.resume()
-                            }
-                        }
-                    }
-                    
-            guard AVAudioSession.sharedInstance().recordPermission == .granted else {
-                debugLog("❌ マイクの許可がありません。音声解析を中止します。")
-                return
-                
-            }
-            
-            do {
-                try await loadModelAndLabels()
-
-                // 録音を含むセッションを自前で設定（AppState起動時の一括設定は廃止したため）
-                try AVAudioSession.sharedInstance().setCategory(
-                    .playAndRecord,
-                    mode: .default,
-                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothHFP]
-                )
-                try AVAudioSession.sharedInstance().setActive(true)
-
-                // エンジンの初期化
-                audioEngine = AVAudioEngine()
-                guard let audioEngine = audioEngine else { return }
-                
-                let inputNode = audioEngine.inputNode
-                // ★ポイント1: マイクの「実際の」フォーマットを取得する
-                let inputFormat = inputNode.outputFormat(forBus: 0)
-                
-                // ★ポイント2: AIが要求するフォーマット (16kHz, 1ch) を定義する
-                guard let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else {
-                    debugLog("❌ ターゲットフォーマットの作成に失敗")
-                    return
-                }
-                
-                // ★ポイント3: 変換器 (Converter) を作成
-                guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
-                    debugLog("❌ AVAudioConverterの作成に失敗。フォーマットがサポートされていません。")
-                    return
-                }
-                
-                inputNode.removeTap(onBus: 0)
-                
-                // ★ポイント4: マイクからのデータ取得は「元のフォーマット」で行う
-                inputNode.installTap(onBus: 0, bufferSize: 8192, format: inputFormat) { [weak self] (buffer, time) in
-                    guard let self = self else { return }
-                    
-                    // 変換後のバッファサイズを計算して箱を用意する
-                    let capacity = AVAudioFrameCount(Double(buffer.frameLength) * (self.sampleRate / inputFormat.sampleRate))
-                    guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
-                    
-                    var error: NSError?
-                    var allSamplesReceived = false
-                    
-                    // 変換器にデータを流し込む処理
-                    let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
-                        if allSamplesReceived {
-                            outStatus.pointee = .noDataNow
-                            return nil
-                        }
-                        allSamplesReceived = true
-                        outStatus.pointee = .haveData
-                        return buffer
-                    }
-                    
-                    // 変換を実行！ (44.1kHz -> 16kHz)
-                    converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
-                    
-                    // 変換された16kHzのデータをFloat配列にする
-                    if let channelData = convertedBuffer.floatChannelData?[0] {
-                        let frameLength = Int(convertedBuffer.frameLength)
-                        let dataArray = Array(UnsafeBufferPointer(start: channelData, count: frameLength))
-                        
-                        // バックグラウンドでAIに渡す準備
-                        self.analysisQueue.async {
-                            self.audioBuffer.append(contentsOf: dataArray)
-                            
-                            // 必要なサンプル数 (15600) が溜まったらAIに推論させる
-                            if self.audioBuffer.count >= self.requiredSampleCount {
-                                let chunkToAnalyze = Array(self.audioBuffer.prefix(self.requiredSampleCount))
-                                // 処理した分だけバッファから消す
-                                self.audioBuffer.removeFirst(self.requiredSampleCount)
-                                
-                                // YAMNetの推論メソッドを呼ぶ
-                                self.analyzeAudioChunk(audioData: chunkToAnalyze)
-                            }
-                        }
-                    }
-                }
-                
-                audioEngine.prepare()
-                try audioEngine.start()
-                
-                DispatchQueue.main.async {
-                    self.isAnalyzing = true
-                }
-                debugLog("🎙 音声分析(YAMNet)をバックグラウンドで開始しました")
-                
-            } catch {
-                debugLog("❌ 音声分析の開始に失敗: \(error)")
+        let permission = AVAudioApplication.shared.recordPermission
+        if permission == .undetermined {
+            await withCheckedContinuation { continuation in
+                AVAudioApplication.requestRecordPermission { _ in continuation.resume() }
             }
         }
+        guard lifecycleID == runID,
+              AVAudioApplication.shared.recordPermission == .granted else {
+            debugLog("❌ マイクの許可がないか、開始処理がキャンセルされました。")
+            return
+        }
+
+        do {
+            debugLog("TFLite: モデルとラベルの非同期ロードを開始します...")
+            let loadedWorker = try await SoundInferenceWorker.load()
+            guard lifecycleID == runID else { return }
+            worker = loadedWorker
+
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothHFP])
+            try session.setActive(true)
+
+            let engine = AVAudioEngine()
+            let inputNode = engine.inputNode
+            let inputFormat = inputNode.outputFormat(forBus: 0)
+            guard let targetFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: sampleRate,
+                channels: 1,
+                interleaved: false
+            ), let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+                throw NSError(domain: "SoundAnalyzer", code: 3, userInfo: [NSLocalizedDescriptionKey: "音声フォーマットを変換できません。"])
+            }
+
+            inputNode.removeTap(onBus: 0)
+            inputNode.installTap(onBus: 0, bufferSize: 8192, format: inputFormat) { [weak self, loadedWorker] buffer, _ in
+                let capacity = AVAudioFrameCount(Double(buffer.frameLength) * (16_000.0 / inputFormat.sampleRate))
+                guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
+                let state = ConverterInputState()
+                var conversionError: NSError?
+                converter.convert(to: converted, error: &conversionError) { _, status in
+                    guard state.shouldProvideInput() else {
+                        status.pointee = .noDataNow
+                        return nil
+                    }
+                    status.pointee = .haveData
+                    return buffer
+                }
+                guard conversionError == nil, let channel = converted.floatChannelData?[0] else { return }
+                let samples = Array(UnsafeBufferPointer(start: channel, count: Int(converted.frameLength)))
+                loadedWorker.append(samples) { label, score in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.lifecycleID == runID else { return }
+                        debugLog("⚠️ TFLite イベント検出: \(label) (信頼度: \(score * 100)%)")
+                        self.lastDetectedSound = label
+                    }
+                }
+            }
+
+            audioEngine = engine
+            engine.prepare()
+            try engine.start()
+            guard lifecycleID == runID else {
+                stopAnalyzing()
+                return
+            }
+            isAnalyzing = true
+            debugLog("🎙 音声分析(YAMNet)をバックグラウンドで開始しました")
+        } catch {
+            guard lifecycleID == runID else { return }
+            stopAnalyzing()
+            debugLog("❌ 音声分析の開始に失敗: \(error.localizedDescription)")
+        }
+    }
 
     func stopAnalyzing() {
-        guard isAnalyzing else { return }
-        
-        self.isAnalyzing = false
-        
-        analysisQueue.async {
-            self.audioEngine?.stop()
-            self.audioEngine?.inputNode.removeTap(onBus: 0)
-            self.audioEngine = nil
-            self.audioBuffer = []
-            
-            DispatchQueue.main.async {
-                debugLog("⏸️ 音声分析 (TFLite) を停止しました。")
-            }
+        lifecycleID = UUID()
+        isAnalyzing = false
+        if let engine = audioEngine {
+            engine.stop()
+            engine.inputNode.removeTap(onBus: 0)
         }
-    }
-
-    private func analyzeAudioChunk(audioData: [Float]) {
-        guard let interpreter = self.interpreter else { return }
-        
-        debugCounter += 1
-        
-        let audioTensorData = audioData.withUnsafeBufferPointer { Data(buffer: $0) }
-        
-        do {
-            try interpreter.copy(audioTensorData, toInputAt: 0)
-            try interpreter.invoke()
-            
-            let outputTensor = try interpreter.output(at: 0)
-            
-            let outputScores = outputTensor.data.withUnsafeBytes {
-                Array(UnsafeBufferPointer<Float32>(start: $0.baseAddress!.assumingMemoryBound(to: Float32.self), count: self.classNames.count))
-            }
-            
-            guard let (maxIndex, maxScore) = outputScores.enumerated().max(by: { $0.1 < $1.1 }),
-                  maxIndex < self.classNames.count else {
-                return
-            }
-            
-            let detectedLabel = self.classNames[maxIndex]
-
-            if maxScore > 0.4 {
-                if ["Snoring", "Cough", "Speech", "Gasp"].contains(detectedLabel) {
-                    DispatchQueue.main.async {
-                        debugLog("⚠️ TFLite イベント検出: \(detectedLabel) (信頼度: \(maxScore * 100)%)")
-                        self.lastDetectedSound = detectedLabel
-                    }
-                }
-            }
-            
-        } catch {
-            DispatchQueue.main.async {
-                debugLog("❌ TFLite 推論エラー: \(error.localizedDescription)")
-            }
-        }
+        audioEngine = nil
+        worker?.reset()
+        worker = nil
+        debugLog("⏸️ 音声分析 (TFLite) を停止しました。")
     }
 }

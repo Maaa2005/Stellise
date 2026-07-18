@@ -14,8 +14,7 @@ struct PremiumIntroView: View {
     
     // EULAとプライバシーポリシーのURL
     let eulaURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-    // TODO: プライバシーポリシーのURLをご自身のものに書き換えてください
-    let privacyURL = URL(string: "https://dusty-jobaria-c70.notion.site/Stellise-3297d70e2c8c80e59cb0c9bd2fb0c008")! // 例: 自分のサイトのURLなど
+    let privacyURL = URL(string: "https://dusty-jobaria-c70.notion.site/Stellise-3297d70e2c8c80e59cb0c9bd2fb0c008")!
     
     var body: some View {
         VStack(spacing: 20) {

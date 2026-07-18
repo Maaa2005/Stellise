@@ -21,7 +21,10 @@ struct SleepDataView: View {
     @State private var ringProgress: CGFloat = 0
     @State private var countUp: Double = 0
 
-    private var hasReport: Bool { appState.lastSleepScore > 0 }
+    private var latestReport: SleepReport? {
+        appState.userData.sleepReports.max(by: { $0.date < $1.date })
+    }
+    private var hasReport: Bool { latestReport != nil }
     private var alarmText: String {
         String(format: "%02d:%02d", appState.userData.alarmHour, appState.userData.alarmMinute)
     }
@@ -124,19 +127,21 @@ struct SleepDataView: View {
 
     // MARK: - 週リング（M〜S）
 
-    /// 1週間ぶんのスコア。過去=実績(暫定ダミー)、今日=最新スコア、未来=nil(空リング)。
+    /// 今週月曜から日曜までの実測スコア。未計測日は空リングにする。
     private var weekRings: [(label: String, score: Int?, isToday: Bool)] {
         let labels = ["M", "T", "W", "T", "F", "S", "S"]
-        let wd = Calendar.current.component(.weekday, from: Date()) // 1=日..7=土
-        let todayIdx = (wd + 5) % 7                                  // 月=0..日=6
-        let dummies = [68, 74, 61, 80, 72, 65, 70]
-        // 見た目優先: 平日(M〜F)はダミーで点灯、週末(S,S)は空。今日は最新スコアで上書き。
-        return labels.enumerated().map { i, l in
-            let score: Int?
-            if i == todayIdx { score = appState.lastSleepScore > 0 ? appState.lastSleepScore : dummies[i] }
-            else if i <= 4 { score = dummies[i] }   // 平日は実績(暫定ダミー)
-            else { score = nil }                    // 週末は空リング
-            return (l, score, i == todayIdx)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekday = calendar.component(.weekday, from: today)
+        let daysSinceMonday = (weekday + 5) % 7
+        let monday = calendar.date(byAdding: .day, value: -daysSinceMonday, to: today) ?? today
+
+        return labels.enumerated().map { index, label in
+            let date = calendar.date(byAdding: .day, value: index, to: monday) ?? monday
+            let report = appState.userData.sleepReports
+                .filter { calendar.isDate($0.date, inSameDayAs: date) }
+                .max(by: { $0.date < $1.date })
+            return (label, report?.score, calendar.isDate(date, inSameDayAs: today))
         }
     }
 
@@ -230,12 +235,21 @@ struct SleepDataView: View {
         }
     }
 
-    // MARK: - 睡眠時間・REM カード（暫定ダミー）
+    // MARK: - 実測した睡眠時間・検知回数
 
     private var sleepStatsRow: some View {
-        HStack(spacing: 12) {
-            statCard(dot: Color(hex: "#2F6BFF"), value: "6h 20m", label: "Total sleep")
-            statCard(dot: Color(hex: "#5AD1E0"), value: "1h 11m", label: "REM Sleep")
+        let durationText: String
+        if let duration = latestReport?.duration {
+            let totalMinutes = max(0, Int(duration / 60))
+            durationText = "\(totalMinutes / 60)時間\(totalMinutes % 60)分"
+        } else {
+            durationText = "--"
+        }
+        let detectionText = latestReport.map { "\($0.movementCount)回 / \($0.snoreCount)回" } ?? "--"
+
+        return HStack(spacing: 12) {
+            statCard(dot: Color(hex: "#2F6BFF"), value: durationText, label: "就床時間")
+            statCard(dot: Color(hex: "#5AD1E0"), value: detectionText, label: "体動 / いびき")
         }
     }
 

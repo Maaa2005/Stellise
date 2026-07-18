@@ -4,9 +4,10 @@ import re
 import json
 import logging
 import datetime
+import math
 from zoneinfo import ZoneInfo
 import requests
-import google.generativeai as genai
+from google import genai
 import googlemaps
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
@@ -48,8 +49,7 @@ if not firebase_admin._apps:
 if firebase_admin._apps:
     db = firestore.client()
 
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 gmaps_client = googlemaps.Client(key=GOOGLE_MAPS_API_KEY) if GOOGLE_MAPS_API_KEY else None
 
 # 1日あたりの利用上限（コスト保険。正常利用では到達しない値にしてある）
@@ -84,7 +84,17 @@ def get_user_premium_status(uid):
         return False
     try:
         doc = db.collection("users").document(uid).get()
-        return doc.to_dict().get("isPremium", False) if doc.exists else False
+        if not doc.exists:
+            return False
+        data = doc.to_dict() or {}
+        checked_at = data.get("premiumCheckedAt")
+        if not data.get("isPremium", False) or not checked_at:
+            return False
+        # 解約後の古い true を永久に信頼しない。アプリ起動時にStoreKitが更新する。
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if checked_at.tzinfo is None:
+            checked_at = checked_at.replace(tzinfo=datetime.timezone.utc)
+        return now - checked_at <= datetime.timedelta(days=2)
     except Exception as e:
         logger.error(f"Premium check error: {e}")
         return False
@@ -92,24 +102,32 @@ def get_user_premium_status(uid):
 
 def check_daily_quota(uid, kind):
     """uidごと・日ごとの利用回数を Firestore でカウントし、上限内なら True。
-    Firestoreが使えない場合は安全側（許可）に倒す（サービス全停止を避ける）"""
+    Firestoreが使えない場合は課金APIの乱用を防ぐため拒否する。"""
     if not db:
-        return True
+        return False
     limit = DAILY_LIMITS.get(kind, 100)
     today = datetime.datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
     field = f"{today}_{kind}"
     ref = db.collection("usage").document(uid)
     try:
-        snap = ref.get()
-        count = (snap.to_dict() or {}).get(field, 0) if snap.exists else 0
-        if count >= limit:
-            logger.warning(f"⛔ quota exceeded: uid={uid} kind={kind} count={count}")
-            return False
-        ref.set({field: firestore.Increment(1)}, merge=True)
-        return True
+        transaction = db.transaction()
+
+        @firestore.transactional
+        def increment_if_available(txn):
+            snap = ref.get(transaction=txn)
+            count = (snap.to_dict() or {}).get(field, 0) if snap.exists else 0
+            if not isinstance(count, int) or count >= limit:
+                return False
+            txn.set(ref, {field: count + 1}, merge=True)
+            return True
+
+        allowed = increment_if_available(transaction)
+        if not allowed:
+            logger.warning(f"⛔ quota exceeded: uid={uid} kind={kind}")
+        return allowed
     except Exception as e:
         logger.error(f"Quota check error: {e}")
-        return True
+        return False
 
 
 def require_auth():
@@ -142,7 +160,8 @@ def get_weather():
         return jsonify({"error": "Invalid coordinates"}), 400
 
     # NaN/Infinityも範囲比較を満たさないため拒否される。
-    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+    if not (math.isfinite(lat) and math.isfinite(lon)
+            and -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
         return jsonify({"error": "Invalid coordinates"}), 400
 
     if not OPENWEATHER_API_KEY:
@@ -172,6 +191,14 @@ def get_travel_time():
     if err:
         return err
 
+    origin = (request.args.get("origin") or "").strip()
+    destination = (request.args.get("destination") or "").strip()
+    mode = request.args.get("mode", "driving")
+    if not (1 <= len(origin) <= 300 and 1 <= len(destination) <= 300):
+        return jsonify({"error": "Invalid route"}), 400
+    if mode not in {"driving", "walking", "transit", "bicycling"}:
+        return jsonify({"error": "Invalid mode"}), 400
+
     # アプリ設計上、無料ユーザーは端末内MapKitで計算するのでここには来ない。
     # 来た場合は改造クライアント等なので拒否してMaps課金を守る
     if not get_user_premium_status(uid):
@@ -188,10 +215,6 @@ def get_travel_time():
         logger.error("❌ Google Maps Client is None! Check API Key.")
         return jsonify({"duration_seconds": 1800, "has_delay": False,
                         "summary": "サーバ設定エラー"}), 200
-
-    origin = request.args.get("origin")
-    destination = request.args.get("destination")
-    mode = request.args.get("mode", "driving")
 
     try:
         now = datetime.datetime.now()
@@ -271,7 +294,61 @@ def suggest_tasks():
     if err:
         return err
 
-    data = request.json or {}
+    if not GEMINI_API_KEY or not gemini_client:
+        return jsonify({"error": "Server Unavailable"}), 503
+    if request.content_length and request.content_length > 50_000:
+        return jsonify({"error": "Payload Too Large"}), 413
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    feedback_history = data.get("feedback_history") or []
+    master_task_items = data.get("user_master_tasks") or []
+    calendar_events = data.get("calendar_events") or []
+    weather_info = data.get("weather_info") or {}
+    if (not isinstance(feedback_history, list)
+            or not isinstance(master_task_items, list)
+            or not isinstance(calendar_events, list)
+            or not isinstance(weather_info, dict)):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    # プロンプトに入る文字列も長さを制限し、異常なトークン消費を防ぐ。
+    def short_text(value, limit=300):
+        return str(value)[:limit]
+
+    feedback_history = [f for f in feedback_history[:10] if isinstance(f, dict)]
+    master_task_items = [t for t in master_task_items[:20] if isinstance(t, dict)]
+    calendar_events = [e for e in calendar_events[:10] if isinstance(e, dict)]
+    for item in feedback_history + master_task_items + calendar_events:
+        if any(len(str(value)) > 500 for value in item.values()):
+            return jsonify({"error": "Invalid payload"}), 400
+
+    weather_main = weather_info.get("main")
+    weather_items = weather_info.get("weather")
+    if weather_main is not None and not isinstance(weather_main, dict):
+        return jsonify({"error": "Invalid payload"}), 400
+    if weather_items is not None and not isinstance(weather_items, list):
+        return jsonify({"error": "Invalid payload"}), 400
+    weather_main = weather_main or {}
+    weather_items = [item for item in (weather_items or [])[:5] if isinstance(item, dict)]
+    weather_description = short_text(
+        weather_items[0].get("description", "不明") if weather_items else "不明",
+        100,
+    )
+    try:
+        temperature = float(weather_main.get("temp", 0))
+        if not math.isfinite(temperature) or not -100 <= temperature <= 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid payload"}), 400
+    departure_time = short_text(data.get("departure_time", "指定なし"), 500)
+    try:
+        sleep_score = int(data.get("sleep_score", 0))
+        if not 0 <= sleep_score <= 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid payload"}), 400
+
     is_premium = get_user_premium_status(uid)  # Firestoreのみを信頼
 
     if not check_daily_quota(uid, "suggest_premium" if is_premium else "suggest_free"):
@@ -279,12 +356,14 @@ def suggest_tasks():
         return jsonify({"error": "Too Many Requests"}), 429
 
     # トークン費の上限化: プロンプトに入れる件数を制限
-    feedback_history = (data.get("feedback_history") or [])[:10]
-    master_tasks = [t.get("title") for t in (data.get("user_master_tasks") or [])[:20]]
-    calendar_events = (data.get("calendar_events") or [])[:10]
+    master_tasks = [short_text(t.get("title", "")) for t in master_task_items]
+    calendar_events = [
+        {key: short_text(event.get(key, "")) for key in ("title", "start", "end")}
+        for event in calendar_events
+    ]
 
-    good_tasks = [f["title"] for f in feedback_history if f.get("is_good")]
-    bad_tasks = [f["title"] for f in feedback_history if not f.get("is_good")]
+    good_tasks = [short_text(f.get("title", "")) for f in feedback_history if f.get("is_good")]
+    bad_tasks = [short_text(f.get("title", "")) for f in feedback_history if not f.get("is_good")]
 
     feedback_prompt = ""
     if good_tasks or bad_tasks:
@@ -305,20 +384,20 @@ def suggest_tasks():
         {feedback_prompt}
 
         【ユーザーの状況】
-        1. 天気: {data.get('weather_info', {}).get('weather', [{}])[0].get('description', '不明')}
-           (気温: {data.get('weather_info', {}).get('main', {}).get('temp', 0)}℃)
+        1. 天気: {weather_description}
+           (気温: {temperature}℃)
            -> 雨なら「傘を持つ」タスクを追加したり、移動の準備を早めてください。
            -> 寒いなら「コートを着る」「マフラーを持つ」などを考慮してください。
-        2. 昨晩の睡眠スコア: {data.get('sleep_score', '不明')} / 100
+        2. 昨晩の睡眠スコア: {sleep_score} / 100
            -> 70点未満なら「寝不足」です。準備時間を長めに確保し、気遣いタスクは休息系（白湯を飲む、深呼吸 等）だけに絞り、タスク総数を最小限にしてください。
            -> 90点以上なら「絶好調」です。朝の勉強や運動など、積極的なタスクを提案しても良いでしょう。
-        3. 出発時刻: {data.get('departure_time', '指定なし')}
+        3. 出発時刻: {departure_time}
         4. マスタタスク(ルーティン): {master_tasks}
         5. カレンダーの予定: {json.dumps(calendar_events, ensure_ascii=False)}
 
         【スケジュール作成の絶対ルール（厳守）】
         1. 時間計算:
-           - 予定（出発時刻）がある場合: 起床から「出発時刻（{data.get('departure_time', '指定なし')}）」までの間にすべてのタスクが終わるように逆算すること。
+           - 予定（出発時刻）がある場合: 起床から「出発時刻（{departure_time}）」までの間にすべてのタスクが終わるように逆算すること。
            - 予定（出発時刻）が「指定なし」の場合: 起床から「2時間後まで」の間にすべてのタスクが終わるようにゆったりと組むこと。
         2. 時間帯の制限:
            いかなる場合でも、夜や深夜（20:00〜04:00など）の時間は絶対に出力しないこと。必ず「朝（04:00以降）」の時刻を設定すること。
@@ -358,13 +437,13 @@ def suggest_tasks():
 
         予定: {json.dumps(calendar_events, ensure_ascii=False)}
         タスク: {master_tasks}
-        出発時刻: {data.get('departure_time', '指定なし')}
-        昨晩の睡眠スコア: {data.get('sleep_score', '不明')} / 100
+        出発時刻: {departure_time}
+        昨晩の睡眠スコア: {sleep_score} / 100
         （70点未満なら寝不足です。新しいタスクは追加せず、各タスクの所要時間と間隔にゆとりを持たせてください）
 
         【スケジュール作成の絶対ルール（厳守）】
         1. 時間計算:
-           - 予定（出発時刻）がある場合: 起床から「出発時刻（{data.get('departure_time', '指定なし')}）」までの間にすべてのタスクが終わるように時間を逆算して組むこと。
+           - 予定（出発時刻）がある場合: 起床から「出発時刻（{departure_time}）」までの間にすべてのタスクが終わるように時間を逆算して組むこと。
            - 予定（出発時刻）が「指定なし」の場合: 起床から「2時間後まで」の間にすべてのタスクが終わるようにゆったりと組むこと。
         2. 時間帯の制限:
            いかなる場合でも、夜や深夜（20:00〜04:00など）の時間は絶対に出力しないこと。必ず「朝（04:00以降）」の時刻を設定すること。
@@ -382,11 +461,11 @@ def suggest_tasks():
         """
 
     try:
-        model = genai.GenerativeModel(
-            model_name,
-            generation_config={"response_mime_type": "application/json"},
+        resp = gemini_client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
         )
-        resp = model.generate_content(prompt)
         tasks = json.loads(resp.text)
         # 形式検証: アプリは [{title,time,duration,source}] を期待する
         if not isinstance(tasks, list):
@@ -423,6 +502,37 @@ def upload_sleep_log():
         return jsonify({"status": "saved"}), 200
     except Exception as e:
         logger.error(f"Sleep log upload error: {e}")
+        return jsonify({"error": "Internal Error"}), 500
+
+
+@app.route("/delete_account", methods=["DELETE"])
+def delete_account():
+    """匿名認証ユーザーのFirestoreデータとAuthレコードを一括削除する。"""
+    uid, err = require_auth()
+    if err:
+        return err
+    if not db:
+        return jsonify({"error": "Server Unavailable"}), 503
+
+    try:
+        user_ref = db.collection("users").document(uid)
+        # Firestoreは親ドキュメントを消してもサブコレクションを消さない。
+        sleep_logs = list(user_ref.collection("sleep_logs").stream())
+        for start in range(0, len(sleep_logs), 450):
+            batch = db.batch()
+            for doc in sleep_logs[start:start + 450]:
+                batch.delete(doc.reference)
+            batch.commit()
+
+        user_ref.delete()
+        db.collection("usage").document(uid).delete()
+        auth.delete_user(uid)
+        return jsonify({"status": "deleted"}), 200
+    except auth.UserNotFoundError:
+        # Firestore側の削除が完了していれば再試行も成功扱いにする。
+        return jsonify({"status": "deleted"}), 200
+    except Exception as e:
+        logger.error(f"Account deletion error: {e}")
         return jsonify({"error": "Internal Error"}), 500
 
 

@@ -341,7 +341,7 @@
 				CODE_SIGN_ENTITLEMENTS = StelliSeAlarmWidget/StelliSeAlarmWidget.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = StelliSeAlarmWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -373,7 +373,7 @@
 				CODE_SIGN_ENTITLEMENTS = StelliSeAlarmWidget/StelliSeAlarmWidget.entitlements;
 				INFOPLIST_KEY_CFBundleDisplayName = StelliSeAlarmWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -539,7 +539,6 @@
 				INFOPLIST_KEY_NSSiriUsageDescription = "Siriを使って、次のタスクの読み上げや、タスクの完了操作を行うために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
@@ -585,7 +584,6 @@
 				INFOPLIST_KEY_NSSiriUsageDescription = "Siriを使って、次のタスクの読み上げや、タスクの完了操作を行うために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;

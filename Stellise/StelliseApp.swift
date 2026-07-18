@@ -125,7 +125,7 @@ struct StelliseApp: App {
                     // 朝へ: センサー・音声解析を停止（タスクは自動生成しない）
                     Task {
                         appState.sensorManager.stopDetection()
-                        await appState.soundAnalyzer.stopAnalyzing()
+                        appState.soundAnalyzer.stopAnalyzing()
                     }
                 }
             }
@@ -137,6 +137,7 @@ struct StelliseApp: App {
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
+                    appState.reloadSharedUserData()
                     currentHour = Calendar.current.component(.hour, from: Date())
                     checkTimeAndSwitchTab()
                     handlePendingAlarmKitAlarm()
@@ -213,4 +214,3 @@ struct StelliseApp: App {
         }
     }
 }
-

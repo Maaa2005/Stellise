@@ -24,6 +24,12 @@ struct AlarmRingingView: View {
     @State private var breathTick = Timer.publish(every: 2.6, on: .main, in: .common).autoconnect()
     @Environment(\.scenePhase) private var scenePhase
 
+    private var activeScreen: UIScreen? {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen }
+            .first
+    }
+
     var body: some View {
         ZStack {
 
@@ -115,9 +121,11 @@ struct AlarmRingingView: View {
 
                     }
         .onAppear {
-            self.originalBrightness = UIScreen.main.brightness
-                        // (2) 画面の明るさを最大にする
-                        UIScreen.main.brightness = 1.0
+            if let screen = activeScreen {
+                self.originalBrightness = screen.brightness
+                // (2) 画面の明るさを最大にする
+                screen.brightness = 1.0
+            }
 
                         // (3) フチの点滅アニメーションを開始
                         withAnimation {
@@ -129,7 +137,7 @@ struct AlarmRingingView: View {
                         UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.5)
             }
         .onDisappear{
-            UIScreen.main.brightness = self.originalBrightness
+            activeScreen?.brightness = self.originalBrightness
                     }
         .onReceive(breathTick) { _ in
             // 波紋が広がるタイミングに合わせて、心拍を上げない柔らかい触覚を刻む
@@ -146,17 +154,17 @@ struct AlarmRingingView: View {
                     dawnOpacity = 0
                 }
                 // (3) 明るさを元に戻す
-                UIScreen.main.brightness = self.originalBrightness
+                activeScreen?.brightness = self.originalBrightness
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
             // 鳴動中にホームへ出る／バックグラウンドに回ると明るさが最大のまま残るため、
             // 非アクティブ化のタイミングで明示的に元の明るさへ戻す
             if newPhase == .background || newPhase == .inactive {
-                UIScreen.main.brightness = self.originalBrightness
+                activeScreen?.brightness = self.originalBrightness
             } else if newPhase == .active && appState.isAlarmRinging {
                 // 復帰時、まだ鳴動中なら再び明るさを最大にする
-                UIScreen.main.brightness = 1.0
+                activeScreen?.brightness = 1.0
             }
         }
         }
@@ -182,4 +190,3 @@ struct AlarmRingingView: View {
                 .environmentObject(SubscriptionManager())
         }
     }
-

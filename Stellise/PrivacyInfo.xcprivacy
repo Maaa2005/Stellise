@@ -25,19 +25,6 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- 名前(ニックネーム) — AIタスク提案のパーソナライズ -->
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypeName</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
 		<!-- その他ユーザーコンテンツ — カレンダー予定のタイトル/時刻・マスタタスク・フィードバック -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>

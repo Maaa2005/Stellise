@@ -13,8 +13,10 @@ struct SettingsView: View {
 
     @State private var isShowingRedeemSheet = false
     @State private var showDeleteAlert = false
+    @State private var isDeletingAccount = false
+    @State private var deleteErrorMessage: String?
     @State private var alarmAuthState: AlarmManager.AuthorizationState = .notDetermined
-    @State private var micPermission: AVAudioSession.RecordPermission = .undetermined
+    @State private var micPermission: AVAudioApplication.recordPermission = .undetermined
     @State private var calendarStatus: EKAuthorizationStatus = .notDetermined
     
     var body: some View {
@@ -76,7 +78,7 @@ struct SettingsView: View {
                         case .notDetermined:
                             Button("許可する") {
                                 Task {
-                                    await appState.requestNotificationPermission()
+                                    appState.requestNotificationPermission()
                                     alarmAuthState = AlarmManager.shared.authorizationState
                                 }
                             }
@@ -173,9 +175,9 @@ struct SettingsView: View {
                         color: micStatusColor,
                         state: micPermState
                     ) {
-                        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                        AVAudioApplication.requestRecordPermission { _ in
                             DispatchQueue.main.async {
-                                micPermission = AVAudioSession.sharedInstance().recordPermission
+                                micPermission = AVAudioApplication.shared.recordPermission
                             }
                         }
                     }
@@ -246,9 +248,10 @@ struct SettingsView: View {
                 // ※「ログアウト」は撤去: 本アプリは匿名アカウントのみでサインイン機能が無いため、
                 //   ログアウトは意味を持たず（データが孤立するだけ）誤解を招く。
                 Section(footer: Text("アカウントを削除すると、これまでの睡眠データや設定がすべて消去され、復元することはできません。")) {
-                    Button("アカウントを完全に削除", role: .destructive) {
+                    Button(isDeletingAccount ? "削除中…" : "アカウントを完全に削除", role: .destructive) {
                         showDeleteAlert = true
                     }
+                    .disabled(isDeletingAccount)
                 }
             }
             .listStyle(.insetGrouped)
@@ -256,7 +259,7 @@ struct SettingsView: View {
             .offerCodeRedemption(isPresented: $isShowingRedeemSheet)
             .onAppear {
                 alarmAuthState = AlarmManager.shared.authorizationState
-                micPermission = AVAudioSession.sharedInstance().recordPermission
+                micPermission = AVAudioApplication.shared.recordPermission
                 calendarStatus = EKEventStore.authorizationStatus(for: .event)
             } // プロモコード入力シート
             .alert("本当に削除しますか？", isPresented: $showDeleteAlert) {
@@ -266,6 +269,14 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("この操作は取り消せません。\n※サブスクリプションをご利用中の場合は、別途App Storeの設定から解約が必要です。")
+            }
+            .alert("アカウントを削除できませんでした", isPresented: Binding(
+                get: { deleteErrorMessage != nil },
+                set: { if !$0 { deleteErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { deleteErrorMessage = nil }
+            } message: {
+                Text(deleteErrorMessage ?? "通信状況を確認してもう一度お試しください。")
             }
         }
     }
@@ -448,7 +459,6 @@ struct SettingsView: View {
                     Link("利用規約(EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                         .foregroundStyle(.appAccent)
                     
-                    // ★追加: プライバシーポリシーのリンク（※URLを書き換えてください）
                     Link("プライバシーポリシー", destination: URL(string: "https://dusty-jobaria-c70.notion.site/Stellise-3297d70e2c8c80e59cb0c9bd2fb0c008")!)
                         .foregroundStyle(.appAccent)
                     
@@ -466,20 +476,18 @@ struct SettingsView: View {
 
     private func deleteAccount() {
         Task {
-            // 1. サーバ側データ（Firestore）を削除
-            if let user = Auth.auth().currentUser {
-                try? await Firestore.firestore().collection("users").document(user.uid).delete()
-                // 2. 認証アカウント（匿名）を削除
-                do {
-                    try await user.delete()
-                } catch {
-                    debugLog("❌ アカウント削除エラー: \(error.localizedDescription)")
-                }
-            }
-            // 3. 端末内データを削除してオンボーディングへ戻す
-            await MainActor.run {
+            isDeletingAccount = true
+            defer { isDeletingAccount = false }
+            do {
+                try await appState.deleteRemoteAccount()
+                try? Auth.auth().signOut()
                 appState.resetAllUserData()
                 appState.needsOnboarding = true
+                // 本アプリは匿名認証専用のため、削除後は別UIDで作り直す。
+                _ = try? await Auth.auth().signInAnonymously()
+            } catch {
+                deleteErrorMessage = "サーバ側のデータを削除できなかったため、端末内データは残しています。"
+                debugLog("❌ アカウント削除エラー: \(error.localizedDescription)")
             }
         }
     }
