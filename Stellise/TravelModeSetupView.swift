@@ -14,58 +14,46 @@ struct TravelModeSetupView: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        VStack {
-            Text("ステップ 3 / 5")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top)
+        ZStack {
+            OnboardingBackground()
 
-            VStack(spacing: 20) {
-                Spacer()
+            VStack(spacing: 0) {
+                OnboardingProgressHeader(step: 3, total: 5)
 
-                Text("主な移動手段は\n何ですか？")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 10)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        OnboardingHero(
+                            symbol: "location.fill",
+                            title: "主な移動手段",
+                            description: "予定に間に合う起床時刻を計算するため、\n普段もっともよく使う移動手段を選んでください。"
+                        )
+                        .padding(.top, 32)
 
-                Text("カレンダーの予定から、交通時間を考慮した出発時刻を計算するために使用します。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                // --- Kivyの self.travel_mode_chips (VStackに変更) ---
-                VStack(spacing: 15) {
-                    OnboardingTravelModeChip(mode: "transit", text: "公共交通機関", icon: "tram.fill")
-                    OnboardingTravelModeChip(mode: "driving", text: "車", icon: "car.fill")
-                    OnboardingTravelModeChip(mode: "walking", text: "徒歩", icon: "figure.walk")
+                        VStack(spacing: 12) {
+                            OnboardingTravelModeChip(mode: "transit", text: "公共交通機関", detail: "電車・バスなど", icon: "tram.fill")
+                            OnboardingTravelModeChip(mode: "driving", text: "車", detail: "渋滞を考慮", icon: "car.fill")
+                            OnboardingTravelModeChip(mode: "walking", text: "徒歩", detail: "徒歩時間を計算", icon: "figure.walk")
+                        }
+                        .onboardingCard()
+
+                        NavigationLink {
+                            TaskSetupView()
+                        } label: {
+                            OnboardingPrimaryLabel(title: "次へ")
+                        }
+                        .buttonStyle(PressSpringButtonStyle())
+                        .simultaneousGesture(TapGesture().onEnded {
+                            appState.save()
+                            debugLog("移動手段 (\(appState.userData.travelMode)) を保存しました。")
+                        })
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
                 }
-                .padding(.vertical, 30)
-
-                // "次へ" ボタン (TaskSetupViewへ)
-                NavigationLink {
-                    TaskSetupView()
-                } label: {
-                    Text("次へ")
-                        .fontWeight(.semibold)
-                        .frame(width: 300, height: 50)
-                        .background(Color.appAccent)
-                        .foregroundStyle(Color.white)
-                        .cornerRadius(10)
-                }
-                .padding(.top, 20)
-                .simultaneousGesture(TapGesture().onEnded {
-                    // ★ 選択した移動手段を保存
-                    appState.save()
-                    debugLog("移動手段 (\(appState.userData.travelMode)) を保存しました。")
-                })
-                
-                Spacer()
             }
-            .padding()
         }
-        .navigationTitle("移動手段")
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -75,6 +63,7 @@ private struct OnboardingTravelModeChip: View {
     @EnvironmentObject var appState: AppState
     let mode: String
     let text: String
+    let detail: String
     let icon: String
     
     private var isSelected: Bool {
@@ -82,22 +71,34 @@ private struct OnboardingTravelModeChip: View {
     }
     
     var body: some View {
-        Button(action: {
-            appState.userData.travelMode = mode
-            // (保存は「次へ」ボタンが押された時に行う)
-        }) {
-            HStack {
-                Image(systemName: icon)
-                Text(text)
+        Button {
+            withAnimation(.easeOut(duration: 0.18)) {
+                appState.userData.travelMode = mode
             }
-            .font(.headline)
-            .fontWeight(isSelected ? .bold : .regular)
-            .frame(maxWidth: 250, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 15)
-            .background(isSelected ? .appAccent : Color(.systemGray5))
-            .foregroundStyle(isSelected ? .white : .primary)
-            .cornerRadius(15)
+        } label: {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 48, height: 48)
+                    .background(isSelected ? Theme.Palette.accent.opacity(0.28) : Color.white.opacity(0.07), in: Circle())
+                    .foregroundStyle(isSelected ? Theme.Palette.accentLight : .white.opacity(0.72))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(text).font(.headline)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Theme.Palette.textOnDarkMuted)
+                }
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Theme.Palette.accentLight : .white.opacity(0.25))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 70)
+            .background(isSelected ? Theme.Palette.accent.opacity(0.16) : Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isSelected ? Theme.Palette.accentLight.opacity(0.5) : Color.white.opacity(0.06)))
         }
         .buttonStyle(.plain)
     }

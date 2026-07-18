@@ -27,86 +27,87 @@ struct BedFirmnessView: View {
     // UI（見た目）の定義
     // -----------------------------------------------------------------
     var body: some View {
-        VStack {
-            Text("ステップ 2 / 5")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top)
+        ZStack {
+            OnboardingBackground()
 
-            VStack(spacing: 20) {
-                Spacer()
+            VStack(spacing: 0) {
+                OnboardingProgressHeader(step: 2, total: 5)
 
-                Text("寝具の硬さは\nどのくらいですか？")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 10)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        OnboardingHero(
+                            symbol: "bed.double.fill",
+                            title: "寝具の硬さ",
+                            description: "睡眠の動きを正しく捉えるため、\n普段使っている寝具に近いものを選んでください。"
+                        )
+                        .padding(.top, 24)
 
-                Text("マットレスの硬さは、睡眠追跡の精度と快適さの推奨に影響します。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                // --- Kivyの <MDList> に相当 ---
-                // $appState.userData.bedFirmness を直接変更するリスト
-                List {
-                    ForEach(options, id: \.value) { option in
-                        Button(action: {
-                            // 項目がタップされたら、脳(appState)の値を直接更新
-                            appState.userData.bedFirmness = option.value
-                        }) {
-                            HStack {
-                                Text(option.text)
-                                Spacer()
-                                // 選択中の項目にチェックマークを付ける
-                                if appState.userData.bedFirmness == option.value {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.appAccent)
+                        VStack(spacing: 10) {
+                            ForEach(options, id: \.value) { option in
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.18)) {
+                                        appState.userData.bedFirmness = option.value
+                                    }
+                                } label: {
+                                    HStack(spacing: 14) {
+                                        Image(systemName: firmnessIcon(for: option.value))
+                                            .frame(width: 24)
+                                            .foregroundStyle(isSelected(option.value) ? Theme.Palette.accentLight : .white.opacity(0.65))
+                                        Text(option.text)
+                                            .font(.body.weight(.medium))
+                                        Spacer()
+                                        Image(systemName: isSelected(option.value) ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(isSelected(option.value) ? Theme.Palette.accentLight : .white.opacity(0.25))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .frame(minHeight: 52)
+                                    .background(
+                                        isSelected(option.value) ? Theme.Palette.accent.opacity(0.18) : Color.white.opacity(0.045),
+                                        in: RoundedRectangle(cornerRadius: 14)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .stroke(isSelected(option.value) ? Theme.Palette.accentLight.opacity(0.55) : Color.white.opacity(0.06))
+                                    )
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
-                        .foregroundStyle(.primary) // ボタンの文字色をデフォルトに戻す
-                    }
-                }
-                .frame(height: 300) // リストの高さを固定
-                .listStyle(.insetGrouped) // リストのスタイル
-                
-                // --- Kivyの <MDSlider> に相当 ---
-                // $appState.userData.bedFirmness を直接変更するスライダー
-                Slider(
-                    value: $appState.userData.bedFirmness, // 脳(appState)の値を直接連動
-                    in: 0...100, // 最小値・最大値
-                    step: 25 // 25刻み
-                )
-                .padding(.horizontal)
+                        .onboardingCard()
 
-                // Kivyの MDRaisedButton("次へ")
-                // ★★★ "Button" を "NavigationLink" に変更 ★★★
-                NavigationLink {
-                                    // 遷移先のView
-                                TravelModeSetupView()
-                                } label: {
-                                    // ボタンの見た目（中身は変更なし）
-                                    Text("次へ")
-                                        .fontWeight(.semibold)
-                                        .frame(width: 300, height: 50)
-                                        .background(Color.appAccent)
-                                        .foregroundStyle(Color.white)
-                                        .cornerRadius(10)
-                                }
-                                .padding(.top, 20)
-                                // ★★★ "NavigationLink" が押された瞬間に保存処理を実行 ★★★
-                                .simultaneousGesture(TapGesture().onEnded {
-                                    appState.save()
-                                    debugLog("ベッドの硬さ設定を保存しました。")
-                                })
-                
-                Spacer()
+                        NavigationLink {
+                            TravelModeSetupView()
+                        } label: {
+                            OnboardingPrimaryLabel(title: "次へ")
+                        }
+                        .buttonStyle(PressSpringButtonStyle())
+                        .simultaneousGesture(TapGesture().onEnded {
+                            appState.save()
+                            debugLog("ベッドの硬さ設定を保存しました。")
+                        })
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
+                }
             }
-            .padding()
         }
-        .navigationTitle("寝具の硬さ")
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func isSelected(_ value: Double) -> Bool {
+        appState.userData.bedFirmness == value
+    }
+
+    private func firmnessIcon(for value: Double) -> String {
+        switch value {
+        case 0: return "square.fill"
+        case 25: return "rectangle.fill"
+        case 50: return "bed.double"
+        case 75: return "bed.double.fill"
+        default: return "cloud.fill"
+        }
     }
 }
 
