@@ -44,7 +44,10 @@
       <p>本アプリは、機能の提供に必要な範囲で次のサービスを利用します。</p>
       <ul>
         <li><strong>Firebase Authentication / Cloud Firestore</strong>：匿名ユーザIDによる認証と、Stellise Proの有効状態の保存に使用します。</li>
+        <li><strong>当方のAPIサーバー（PythonAnywhere上で運用）</strong>：アプリとGoogle Gemini・Google Maps・OpenWeatherの間を中継するサーバーです。アプリはFirebase匿名認証のトークンを付けて通信し、サーバーは受け取った次の情報を各サービスの呼び出しに使用します。天気の取得ではおおよその位置情報（緯度・経度）、AIによるタスク提案ではタスク名、カレンダー予定のタイトルと開始・終了時刻、天気情報、睡眠スコア、直近のタスク評価、Stellise Proの移動時間の取得では現在のおおよその位置と予定の場所です。サーバーは、1日あたりの利用回数の上限管理のためにユーザーIDごとの利用回数をFirestoreに記録し、また機能の提供のためにStellise Proの有効状態をFirestoreで確認します。</li>
         <li><strong>Google Gemini API（Google Cloud Paid Tier）</strong>：タスク名、カレンダー予定、天気情報、睡眠スコア、タスク評価をもとに、朝のスケジュールやタスクを提案します。送信データは回答生成のために使用され、Googleの基盤モデルの学習には使用されません。</li>
+        <li><strong>Google Maps Platform（Distance Matrix API）</strong>：Stellise Proをご利用で、カレンダー予定に場所が設定されている場合に、当方のAPIサーバー経由で、現在のおおよその位置（緯度・経度）、予定の場所として登録された文字列、移動手段を送信し、移動時間と渋滞の有無を取得します。無料版ではこの送信を行いません。</li>
+        <li><strong>OpenWeather</strong>：当方のAPIサーバー経由で、おおよその位置情報（緯度・経度）を送信し、現在の天気と気温を取得します。</li>
         <li><strong>Apple StoreKit</strong>：サブスクリプションの購入、確認、復元に使用します。決済情報はAppleが取り扱います。</li>
       </ul>
     </article>
@@ -76,7 +79,7 @@
       <p><a href="mailto:yuu.developer@icloud.com">yuu.developer@icloud.com</a></p>
     </article>
 
-    <div class="legal-note"><p>制定・最終更新日：2026年7月31日</p></div>
+    <div class="legal-note"><p>制定・最終更新日：2026年11月2日</p></div>
   </main>
   <footer><div class="footer-bottom"><span>© 2026 Stellise Yunosuke Tokiwai &amp; Masashi Nakamura</span><div><a href="index.html">ホーム</a><a href="terms.html">利用規約</a></div></div></footer>
 </body>
