@@ -180,7 +180,7 @@ def get_weather():
         )
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        logger.error(f"OpenWeather Error: {e}")
+        logger.error(f"OpenWeather Error: {type(e).__name__}")
         return jsonify({"error": "Internal Error"}), 500
 
 
@@ -218,7 +218,7 @@ def get_travel_time():
 
     try:
         now = datetime.datetime.now()
-        logger.info(f"🗺 Requesting Map: {origin} -> {destination} ({mode})")
+        logger.info(f"🗺 Requesting Map ({mode})")
 
         matrix = gmaps_client.distance_matrix(
             origins=[origin], destinations=[destination],
@@ -228,7 +228,7 @@ def get_travel_time():
         # ※アプリ側は {duration_seconds, has_delay, summary} の3点セットで
         #   デコードするため、どの分岐でも必ず has_delay を含めて返すこと
         if matrix["status"] != "OK":
-            logger.error(f"❌ Maps API Error: {matrix}")
+            logger.error(f"❌ Maps API Error: {matrix['status']}")
             return jsonify({"duration_seconds": 1800, "has_delay": False,
                             "summary": f"API Error: {matrix['status']}"}), 200
 
@@ -250,7 +250,7 @@ def get_travel_time():
         })
 
     except Exception as e:
-        logger.error(f"❌ Maps Exception: {e}")
+        logger.error(f"❌ Maps Exception: {type(e).__name__}")
         return jsonify({"duration_seconds": 1800, "has_delay": False,
                         "summary": "取得エラー"}), 200
 
@@ -269,7 +269,7 @@ def sanitize_tasks(tasks):
             continue
         title = str(t.get("title", "")).strip()
         if not title or any(k in title for k in BANNED_TASK_KEYWORDS):
-            logger.info(f"タスクを除外: {title!r}")
+            logger.info("タスクを除外 (禁止語または空のタイトル)")
             continue
         time = str(t.get("time", ""))
         if not re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d", time):
@@ -472,7 +472,7 @@ def suggest_tasks():
             return jsonify([])
         return jsonify(sanitize_tasks(tasks))
     except Exception as e:
-        logger.error(f"Gemini Error: {e}")
+        logger.error(f"Gemini Error: {type(e).__name__}")
         # エラー時は空配列 → アプリ側が端末内フォールバック生成に切り替わる
         return jsonify([])
 
@@ -501,7 +501,7 @@ def upload_sleep_log():
         db.collection("users").document(uid).collection("sleep_logs").document(date_key).set(payload)
         return jsonify({"status": "saved"}), 200
     except Exception as e:
-        logger.error(f"Sleep log upload error: {e}")
+        logger.error(f"Sleep log upload error: {type(e).__name__}")
         return jsonify({"error": "Internal Error"}), 500
 
 
