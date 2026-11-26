@@ -1,6 +1,9 @@
 const lineSupportUrl = "https://lin.ee/pzygyU4";
 const rateBuckets = new Map();
 
+// ログに出してよい固定文だけを持つ例外。利用者の本文やAIの返答を含めない。
+class SafeError extends Error {}
+
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -48,13 +51,13 @@ async function askGemini(question, history, manual, env) {
       generationConfig: { responseMimeType: "application/json" }
     })
   });
-  if (!upstream.ok) throw new Error(`Gemini returned ${upstream.status}`);
+  if (!upstream.ok) throw new SafeError(`Gemini returned ${upstream.status}`);
   const result = await upstream.json();
   const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned an empty response");
+  if (!text) throw new SafeError("Gemini returned an empty response");
   const parsed = JSON.parse(text);
   const answer = String(parsed.answer || "").trim().slice(0, 800);
-  if (!answer) throw new Error("Gemini returned an empty answer");
+  if (!answer) throw new SafeError("Gemini returned an empty answer");
   const resolved = parsed.resolved === true;
   return { answer, resolved, escalationUrl: resolved ? null : lineSupportUrl };
 }
@@ -73,7 +76,8 @@ async function handleChat(request, env) {
     const manual = await manualResponse.text();
     return json(await askGemini(question, body?.history, manual, env));
   } catch (error) {
-    console.error("Support ChatBot error:", error?.message || error);
+    // 例外のmessageにはJSON.parseの失敗で本文やAI返答が混ざるため、自前の固定文以外は名前だけ記録する。
+    console.error("Support ChatBot error:", error instanceof SafeError ? error.message : (error?.name || "Error"));
     return json(fallback(), 503);
   }
 }

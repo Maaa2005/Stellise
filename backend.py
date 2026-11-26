@@ -96,7 +96,7 @@ def get_user_premium_status(uid):
             checked_at = checked_at.replace(tzinfo=datetime.timezone.utc)
         return now - checked_at <= datetime.timedelta(days=2)
     except Exception as e:
-        logger.error(f"Premium check error: {e}")
+        logger.error(f"Premium check error: {type(e).__name__}")
         return False
 
 
@@ -126,7 +126,7 @@ def check_daily_quota(uid, kind):
             logger.warning(f"⛔ quota exceeded: uid={uid} kind={kind}")
         return allowed
     except Exception as e:
-        logger.error(f"Quota check error: {e}")
+        logger.error(f"Quota check error: {type(e).__name__}")
         return False
 
 
@@ -532,7 +532,7 @@ def delete_account():
         # Firestore側の削除が完了していれば再試行も成功扱いにする。
         return jsonify({"status": "deleted"}), 200
     except Exception as e:
-        logger.error(f"Account deletion error: {e}")
+        logger.error(f"Account deletion error: {type(e).__name__}")
         return jsonify({"error": "Internal Error"}), 500
 
 
